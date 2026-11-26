@@ -27,11 +27,18 @@ Ortalama arıza teşhis süresi uzun, tecrübeli personel izne çıkınca bilgi 
 |---|---|
 | Cevap doğruluğu (eval seti, LLM-as-judge + elle kontrol) | ≥ %80 |
 | Retrieval recall@5 | ≥ 0,85 |
+| Retrieval precision@5 (gürültü göstergesi) | ölç ve raporla |
 | Kaynak gösterme oranı | %100 (kaynaksız cevap yok) |
 | "Bilmiyorum" demesi gereken sorularda doğru reddetme | ≥ %90 |
 | Onaysız veritabanı yazması | 0 |
 | p95 gecikme | < 8 sn |
 | Sorgu başı maliyet | ölçülüp README'ye yazılır |
+
+> **Precision/recall ve maliyet matrisi:** Sadece recall yetmez — recall "doğruyu kaçırdık mı",
+> precision "getirdiğimiz gürültülü mü" sorusunu yanıtlar; ikisi birlikte okunur. Ayrıca her hata eşit
+> maliyetli değildir: **kritik bir arızayı kaçırmak** (false negative) ucuz bir yanlış öneriden çok daha
+> pahalıdır. Bu yüzden arızaları **kritik / normal / düşük** diye önceliklendirip bir **maliyet matrisi**
+> (hangi hata ne kadar pahalı) tanımlayacağız; eval skorlarını bu matrisle ağırlıklandıracağız.
 
 ## 2. Kapsam (RICE ile öncelik)
 
@@ -55,6 +62,8 @@ Ortalama arıza teşhis süresi uzun, tecrübeli personel izne çıkınca bilgi 
 - **Gözlemlenebilirlik:** Langfuse
 - **Arayüz:** React + Vite (tek sayfa)
 - **Deploy:** Docker Compose → GitHub Actions → Google Cloud Run (veya AWS)
+- **Model gateway:** Tüm LLM çağrıları tek bir kapıdan (`app/llm.py`) ve **OpenRouter** üzerinden geçer. OpenRouter burada bir *model gateway* rolü oynar: tek anahtar, çok sağlayıcı, model değiştirme (routing/fallback) ve maliyet görünürlüğü. Gateway deseninin ne kazandırdığını (merkezi loglama, rate-limit, retry, model soyutlama) README'de anlatacağız.
+- **Context layer (bağlam katmanı):** "Modelin context window'una ne giriyor" bilinçli tasarlanır: sistem promptu + seçilen kılavuz parçaları + araç sonuçları + (ileride) hafıza. Her isteğin **token bütçesini** ve neyin dahil/hariç olduğunu belgeleyeceğiz; gereksiz bağlam hem maliyet hem gürültüdür.
 
 ## 4. Veri
 
@@ -159,24 +168,27 @@ Her faz şu başlıkları içerir: **Öğreneceklerim · Yapılacaklar · Bitti 
 **Kontrol soruları:** Bu sistemde trifecta'nın hangi ayağını kırdık ve neden o ayağı?
 
 ### Faz 7 — Gözlemlenebilirlik ve otomatik eval (3 gün)
-**Öğreneceklerim:** tracing, LLM-as-judge, maliyet/gecikme ölçümü, CI'da eval.
+**Öğreneceklerim:** tracing, LLM-as-judge, maliyet/gecikme ölçümü, CI'da eval, precision/recall ve maliyet matrisi.
 **Yapılacaklar:**
 - [ ] Langfuse ile her isteğin trace'i (retrieval, tool, model, token)
 - [ ] LLM-as-judge + 10 soruda elle karşılaştırma (judge ne kadar güvenilir?)
+- [ ] Retrieval için **precision@k ve recall@k** birlikte raporla; MRR
+- [ ] **Maliyet matrisi:** arıza önceliğine (kritik/normal/düşük) göre hataları ağırlıklandır; kritik kaçırma (false negative) ağır cezalı. Skorları hem ham hem maliyet-ağırlıklı ver.
 - [ ] p95 gecikme ve sorgu başı maliyet raporu
 - [ ] GitHub Actions'ta eval: skor eşiğin altına düşerse PR kırmızı
-**Bitti kriteri:** Tek komutla eval raporu; CI'da çalışıyor.
-**Kontrol soruları:** LLM-as-judge'a ne zaman güvenmemeliyiz?
+**Bitti kriteri:** Tek komutla eval raporu (precision/recall + maliyet-ağırlıklı); CI'da çalışıyor.
+**Kontrol soruları:** LLM-as-judge'a ne zaman güvenmemeliyiz? Recall yüksek ama precision düşükse ne olur? Hangi hata en pahalı?
 
 ### Faz 8 — Deploy ve MCP (4–5 gün)
-**Öğreneceklerim:** Docker imajı, Compose, CI/CD, Cloud Run, ortam değişkenleri/secret yönetimi, MCP sunucusu.
+**Öğreneceklerim:** Docker imajı, Compose, CI/CD, Cloud Run, ortam değişkenleri/secret yönetimi, MCP sunucusu; (alternatif) managed agent platformu olarak **AWS Bedrock AgentCore**.
 **Yapılacaklar:**
 - [ ] Dockerfile + `docker-compose.yml` (api, db, ui)
 - [ ] GitHub Actions: test → eval → build → deploy
 - [ ] Cloud Run'a deploy, health check
 - [ ] Araçları MCP sunucusu olarak dışa aç (Claude Desktop'tan bağlanıp dene)
+- [ ] (Opsiyonel/alternatif) **AgentCore ile kıyas**: Kendi yazdığımız agent/araç/HITL/secret parçalarının AgentCore'daki karşılıklarını haritala — **Gateway** (araçları MCP olarak yayınlama), **Identity** (kimlik/yetki), **Policy** (izin/guardrail), **Memory** (yönetilen hafıza), **Runtime** (çalıştırma). "Kendin yaz vs managed platform" kararını README'de tartış.
 **Bitti kriteri:** Herkese açık demo linki; MCP ile araçlar başka istemciden kullanılabiliyor.
-**Kontrol soruları:** Secret'ları nerede tutuyoruz? MCP neyi kolaylaştırdı?
+**Kontrol soruları:** Secret'ları nerede tutuyoruz? MCP neyi kolaylaştırdı? AgentCore hangi parçaları bizden devralırdı, neyi kaybederdik (kontrol/taşınabilirlik)?
 
 ### Faz 9 — Teslim ve hikâye (2 gün)
 **Yapılacaklar:**
@@ -185,6 +197,51 @@ Her faz şu başlıkları içerir: **Öğreneceklerim · Yapılacaklar · Bitti 
 - [ ] `HANDOVER.md`: başkası bu sistemi nasıl işletir (runbook)
 - [ ] LinkedIn paylaşımı
 - [ ] Mülakat hikâyesi: "Bir bakım ekibinin derdini nasıl ölçülebilir şekilde çözdüm"
+
+---
+
+## 7.1 İleri / genişletme fazları (v2 — opsiyonel, kurstaki ileri konular)
+
+> Bunlar v1 (Faz 0–9) teslim edildikten sonra sistemi derinleştiren, ileri seviye konular.
+> Her biri eval setiyle ölçülür; "işe yaradı mı" rakamla gösterilir.
+
+### Faz 10 — Agentic RAG ve çoklu agent (sub-agent)
+**Öğreneceklerim:** query rewriting/expansion, iteratif (çok adımlı) retrieval, self-RAG, agent'ın aramayı değerlendirip tekrar araması; sub-agent / çoklu agent (orkestratör + uzman agent'lar).
+**Yapılacaklar:**
+- [ ] Agent, ilk aramadan gelen parçalar yetersizse **sorguyu yeniden yazıp** tekrar arasın (tek seferlik arama yerine döngü)
+- [ ] Alakasızlık/boşluk tespiti: retrieval skoru düşükse "yeniden sor" veya "bilmiyorum"
+- [ ] (Opsiyonel) **Sub-agent** deseni: ör. "retrieval uzmanı", "SQL uzmanı", "güvenlik denetçisi" alt-agent'ları + bir orkestratör
+- [ ] Eval: Agentic RAG, tek-seferlik RAG'e göre recall/precision ve doğrulukta ne kazandırdı?
+**Bitti kriteri:** En az bir "zor" soru sınıfında agentic RAG, Faz 4 agent'ını eval'de geçiyor.
+**Kontrol soruları:** İteratif arama maliyeti ne kadar artırdı? Çoklu agent ne zaman gereksiz karmaşıklık olur?
+
+### Faz 11 — Hafıza (memory)
+**Öğreneceklerim:** kısa vadeli (konuşma) vs uzun vadeli hafıza, hafıza yazma/çağırma, hafızanın context layer'a girişi.
+**Yapılacaklar:**
+- [ ] Uzun vadeli hafıza deposu (ör. ustabaşının tercihleri, sık red gerekçeleri, makineye özel notlar)
+- [ ] İlgili hafızayı isteğe göre çağırıp context'e ekle (ama token bütçesini aşma)
+- [ ] Gizlilik/PII: hafızada ne saklanır, ne saklanmaz
+- [ ] Eval: hafıza açık/kapalı iken kişiselleştirme ve doğruluk farkı
+**Bitti kriteri:** Asistan önceki kararları/tercihleri hatırlayıp ilgili yerde kullanıyor (test ile kanıtlı).
+**Kontrol soruları:** Hafıza ne zaman yararlı, ne zaman yanıltıcı/eski bilgi riski taşır?
+
+### Faz 12 — Kendini iyileştirme (self-improvement)
+**Öğreneceklerim:** üretimden gelen sinyalle (red gerekçeleri) iyileştirme döngüsü, prompt/eval optimizasyonu, regresyondan korunma.
+**Yapılacaklar:**
+- [ ] Ustabaşının **red gerekçelerini** topla ve etiketle (neden reddedildi?)
+- [ ] Bu sinyalden prompt/few-shot/retrieval ayarını iyileştiren bir döngü kur
+- [ ] **Held-out guard:** her iyileştirmeyi held-out sette doğrula; düşerse geri al (overfit'i engelle)
+**Bitti kriteri:** Red gerekçelerinden türetilen en az bir iyileştirme, held-out sette skoru düşürmeden dev skorunu artırıyor.
+**Kontrol soruları:** Dev'e göre iyileşip held-out'ta düşmek neyin işareti? İyileştirmeyi nasıl geri alırız?
+
+### Faz 13 — Otonomi seviyeleri ve Sorumlu AI
+**Öğreneceklerim:** otonomi seviyeleri (öneri → onaylı eylem → otonom eylem), sorumlu AI (adalet, şeffaflık, hesap verebilirlik, kötüye kullanım).
+**Yapılacaklar:**
+- [ ] **Otonomi tablosu:** her işlem (cevap, SQL sorgu, iş emri taslağı, iş emri kaydı) hangi seviyede — otomatik mi, insan onaylı mı, yasak mı — ve **neden**
+- [ ] **Sorumlu AI değerlendirmesi:** yanlış teşhisin güvenlik etkisi, personel verisinin gizliliği, injection/kötüye kullanım, "asistan hata yaparsa kim sorumlu"
+- [ ] `RESPONSIBLE_AI.md`: otonomi tablosu + risk/azaltım + sınırlar
+**Bitti kriteri:** Otonomi tablosu ve sorumlu AI dokümanı yazıldı; kod bu tabloya uyuyor (ör. iş emri kaydı asla otonom değil).
+**Kontrol soruları:** Hangi işlemi otonom yapmak kabul edilemez, neden? Otonomiyi artırmanın şartı ne (hangi eval eşiği)?
 
 ---
 
@@ -202,6 +259,10 @@ Her faz şu başlıkları içerir: **Öğreneceklerim · Yapılacaklar · Bitti 
 | 7 Gözlemlenebilirlik | ⬜ | | | |
 | 8 Deploy + MCP | ⬜ | | | |
 | 9 Teslim | ⬜ | | | |
+| 10 Agentic RAG + çoklu agent (v2) | ⬜ | | | |
+| 11 Hafıza (v2) | ⬜ | | | |
+| 12 Self-improvement (v2) | ⬜ | | | |
+| 13 Otonomi + Sorumlu AI (v2) | ⬜ | | | |
 
 ## 9. Açık sorular
 
