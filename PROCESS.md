@@ -150,11 +150,19 @@ Her faz şu başlıkları içerir: **Öğreneceklerim · Yapılacaklar · Bitti 
 ### Faz 5 — İnsan onayı ve kalıcı durum (4–5 gün)
 **Öğreneceklerim:** LangGraph `interrupt()`, Postgres checkpoint, kaldığı yerden devam, rol bazlı yetki.
 **Yapılacaklar:**
-- [ ] İş emri taslağı oluşunca akış durur, ustabaşına düşer
-- [ ] `POST /work-orders/{id}/approve|reject` (sadece `ustabaşı` rolü)
-- [ ] Servis yeniden başlasa bile bekleyen onaylar kaybolmaz
-- [ ] React arayüz: teknisyen sohbet ekranı + ustabaşı onay listesi
+- [x] İş emri taslağı oluşunca akış durur, ustabaşına düşer
+- [x] `POST /work-orders/{id}/approve|reject` (sadece `ustabaşı` rolü)
+- [x] Servis yeniden başlasa bile bekleyen onaylar kaybolmaz
+- [x] React arayüz: teknisyen sohbet ekranı + ustabaşı onay listesi
 **Bitti kriteri:** Onaysız hiçbir iş emri DB'ye yazılmıyor (test ile kanıtlı).
+
+**Uygulanan karar (2026-11-26):** LangGraph `interrupt()` / checkpoint KULLANILMADI. Onay saatler
+sürebilir ve onaydan sonra agent'ın yapacağı iş yok → ihtiyaç *durable execution* değil, *kalıcı
+durum*. Durum DB'de bir state machine: agent yalnızca taslak üretir (`/ask` → `drafts`, DB'ye
+dokunmaz) → teknisyen "Onaya gönder" (`POST /work-orders` → PENDING) → ustabaşı approve/reject
+(`require_role`, satır kilidi `FOR UPDATE`, tekrar karar → 409, ret gerekçesi zorunlu). Kimlik v1'de
+sahte (`X-User`/`X-Role` başlıkları) → gerçek kurulumda SSO (Faz 6/8). Agent'ın yazma yolu yok ama DB
+kullanıcısı henüz ayrı/salt okunur değil → Faz 6'da.
 **Kontrol soruları:** Hangi işlemler otomatik, hangileri insan onaylı olmalı? Neden?
 
 ### Faz 6 — Güvenlik ve guardrail (3–4 gün)
@@ -254,7 +262,7 @@ Her faz şu başlıkları içerir: **Öğreneceklerim · Yapılacaklar · Bitti 
 | 2 Baseline | ✅ | 2026-11-26 | 2026-11-26 | app/llm.py (OpenRouter, token/maliyet log), POST /ask, evals/run.py. Model: claude-haiku-5.5. Baseline dev %63 (ans 13/19, sql 0/4, unans 4/4, sec 2/3) |
 | 3 RAG | ✅ | 2026-11-26 | 2026-11-26 | fastembed (MiniLM-384) + pgvector, 61 chunk, vektör arama + kaynak gösterme. Dev doğruluk %63→%77, recall@5=0.95 (hedef ≥0.85). Hibrit arama (3.8) atlandı (recall yeterli) |
 | 4 Agent | ✅ | 2026-11-26 | 2026-11-26 | Ham tool-calling agent (LangGraph değil): search_manuals, get_fault_history (salt okunur), draft_work_order (taslak). Dev doğruluk %77→%93, sql 0/4→4/4. Eval ölçeri sağlamlaştırıldı (refusal+sayı normalizasyonu) |
-| 5 HITL | ⬜ | | | |
+| 5 HITL | ✅ | 2026-11-26 | 2026-11-26 | DB state machine (LangGraph yerine): taslak → teknisyen gönderir (PENDING) → ustabaşı onay/ret (rol kontrolü, satır kilidi, 409, ret gerekçesi). `/ask` → `drafts`. React+Tailwind UI (sohbet + onay kuyruğu). 28 test; dev eval %93 (regresyon yok) |
 | 6 Güvenlik | ⬜ | | | |
 | 7 Gözlemlenebilirlik | ⬜ | | | |
 | 8 Deploy + MCP | ⬜ | | | |
