@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from app.agent.loop import run_agent
 from app.api.work_orders import router as work_orders_router
+from app.tools.work_orders import WorkOrderDraft
 
 app = FastAPI(title="Fabrika Bakım Asistanı", version="0.1.0")
 app.include_router(work_orders_router)
@@ -26,6 +27,9 @@ class AskResponse(BaseModel):
     total_tokens: int
     cost_usd: float | None = None
     tool_calls: list[str] = []
+    # Work-order drafts the agent proposed; NOT saved. The UI shows them with a
+    # "send for approval" button that POSTs a draft to /work-orders.
+    drafts: list[WorkOrderDraft] = []
 
 
 @app.get("/health")
@@ -43,4 +47,5 @@ def ask(req: AskRequest) -> AskResponse:
         total_tokens=result.total_tokens,
         cost_usd=result.cost_usd,
         tool_calls=result.tool_calls,
+        drafts=result.drafts,
     )

@@ -17,18 +17,13 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, Role, get_current_user, get_db, require_role
 from app.models import Machine, Priority, WorkOrder, WorkOrderStatus
+from app.tools.work_orders import WorkOrderDraft
 
 router = APIRouter(prefix="/work-orders", tags=["work-orders"])
 
 
-class WorkOrderSubmit(BaseModel):
-    """Request body: a draft (as produced by draft_work_order) sent for approval."""
-
-    machine_code: str = Field(examples=["PRES-3"])
-    title: str = Field(max_length=200)
-    description: str
-    proposed_actions: str
-    priority: Priority = Priority.MEDIUM
+class WorkOrderSubmit(WorkOrderDraft):
+    """Request body: a draft (as returned in /ask `drafts`) sent for approval."""
 
 
 class WorkOrderOut(BaseModel):
