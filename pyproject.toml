@@ -7,7 +7,13 @@ authors = [
     { name = "Melih Dikmen", email = "melihdikmen06@gmail.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "alembic>=1.20.1",
+    "psycopg[binary]>=3.3.9",
+    "pydantic>=2.14.4",
+    "pydantic-settings>=2.16.3",
+    "sqlalchemy>=2.1.9",
+]
 
 [tool.uv]
 # Bu bir uygulama (dağıtılacak paket değil); uv projeyi wheel olarak kurmasın.
@@ -23,6 +29,8 @@ dev = [
 # Satır uzunluğu (siyah/black geleneği 88). TS'teki prettier printWidth gibi.
 line-length = 100
 target-version = "py312"
+# Alembic'in otomatik ürettiği migration dosyalarını lint etme (kendi env.py'miz dahil değil).
+extend-exclude = ["alembic/versions"]
 
 [tool.ruff.lint]
 # E/F: pyflakes+pycodestyle (temel hatalar), I: import sıralama, UP: modern Python,
