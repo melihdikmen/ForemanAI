@@ -1,0 +1,5 @@
+{"id":"hard-01","category":"answerable","split":"hard","question":"PRES-1'de çalışırken yağ aşırı ısınıyor ve basınç düşüyor, ne yapmalıyım?","expected":{"must_include":["soğutucu","yağ seviyesi"],"sources":["PRES-1.md"]}}
+{"id":"hard-02","category":"answerable","split":"hard","question":"Kompresör aşırı ısınıp kendini kapattı, olası sebep ve ilk kontroller neler?","expected":{"must_include":["soğutucu","havalandırma"],"sources":["KOMP-1.md"]}}
+{"id":"hard-03","category":"answerable","split":"hard","question":"2 numaralı preste pompa motoru sürekli sigorta attırıyor, neye bakmalıyım?","expected":{"must_include":["kaplin","yük"],"sources":["PRES-2.md"]}}
+{"id":"hard-04","category":"answerable","split":"hard","question":"Robotta tel geliyor ama ark tutmuyor, kaynak dikişi oluşmuyor; ne kontrol edilmeli?","expected":{"must_include":["kontak ucu","topraklama"],"sources":["ROBOT-1.md"]}}
+{"id":"hard-05","category":"answerable","split":"hard","question":"Torna tezgahında iş mili çok ısınıp duruyor, hangi adımları izlemeliyim?","expected":{"must_include":["soğutma","rulman"],"sources":["CNC-1.md"]}}

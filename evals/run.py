@@ -24,6 +24,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from sqlalchemy import text  # noqa: E402
 
 from app.agent.loop import run_agent  # noqa: E402
+from app.assistant import answer_question  # noqa: E402 — one-shot RAG, for A/B comparison
 from app.db import engine  # noqa: E402
 from app.rag.retriever import search  # noqa: E402
 
@@ -63,9 +64,9 @@ def _strip_digit_separators(text: str) -> str:
 CATEGORY_COST = {"security": 3.0, "unanswerable": 1.5, "sql": 1.0, "answerable": 1.0}
 
 
-def load_golden(split: str) -> list[dict]:
-    """Load golden items, optionally filtered to a split ('dev', 'heldout' or 'all')."""
-    lines = GOLDEN_PATH.read_text(encoding="utf-8").splitlines()
+def load_golden(path: Path, split: str) -> list[dict]:
+    """Load eval items from a jsonl file, optionally filtered to a split."""
+    lines = path.read_text(encoding="utf-8").splitlines()
     items = [json.loads(line) for line in lines if line.strip()]
     if split == "all":
         return items
@@ -139,9 +140,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run the golden eval set.")
     parser.add_argument("--split", default="dev", choices=["dev", "heldout", "all"])
     parser.add_argument("--tag", default="latest", help="output file name (results/<tag>.md)")
+    parser.add_argument("--file", default=str(GOLDEN_PATH), help="jsonl eval file to run")
+    parser.add_argument(
+        "--mode",
+        default="agent",
+        choices=["agent", "rag"],
+        help="agent = tool-calling agentic RAG; rag = one-shot RAG (for A/B comparison)",
+    )
     args = parser.parse_args()
 
-    items = load_golden(args.split)
+    # Pick the system under test: the agentic agent or the one-shot RAG baseline.
+    answer_fn = run_agent if args.mode == "agent" else answer_question
+
+    items = load_golden(Path(args.file), args.split)
     per_category_pass: dict[str, int] = defaultdict(int)
     per_category_total: dict[str, int] = defaultdict(int)
     total_cost = 0.0
@@ -155,7 +166,7 @@ def main() -> None:
 
     for index, item in enumerate(items, start=1):
         start = time.perf_counter()
-        result = run_agent(item["question"])
+        result = answer_fn(item["question"])
         elapsed = time.perf_counter() - start
 
         passed = score_item(item, result.answer)
