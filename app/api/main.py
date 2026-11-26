@@ -7,8 +7,10 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from app.agent.loop import run_agent
+from app.api.work_orders import router as work_orders_router
 
 app = FastAPI(title="Fabrika Bakım Asistanı", version="0.1.0")
+app.include_router(work_orders_router)
 
 
 class AskRequest(BaseModel):

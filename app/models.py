@@ -98,8 +98,9 @@ class WorkOrder(Base):
         Enum(Priority, native_enum=False),
         default=Priority.MEDIUM,
     )
-    approved_by: Mapped[str | None] = mapped_column(String(100))  # foreman, set on approval
-    approved_at: Mapped[datetime | None]
+    reviewed_by: Mapped[str | None] = mapped_column(String(100))  # foreman who approved/rejected
+    reviewed_at: Mapped[datetime | None]  # when the foreman decided
+    rejection_reason: Mapped[str | None] = mapped_column(Text)  # shown to the technician
 
     machine: Mapped[Machine] = relationship(back_populates="work_orders")
 
