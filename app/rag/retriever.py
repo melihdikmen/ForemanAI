@@ -26,13 +26,20 @@ class RetrievedChunk(BaseModel):
         return f"[{self.source} · {self.section}]"
 
 
-def search(query: str, k: int = 5) -> list[RetrievedChunk]:
-    """Return the top-k manual chunks most similar to the query."""
+def search(query: str, k: int = 5, machine_code: str | None = None) -> list[RetrievedChunk]:
+    """Return the top-k manual chunks most similar to the query.
+
+    If machine_code is given, the search is scoped to that machine's manual only
+    (metadata filtering) — this cuts cross-machine noise and raises precision.
+    """
     query_vector = embed_query(query)
     distance = ManualChunk.embedding.cosine_distance(query_vector)
 
     with SessionLocal() as session:
-        stmt = select(ManualChunk, distance.label("distance")).order_by(distance).limit(k)
+        stmt = select(ManualChunk, distance.label("distance"))
+        if machine_code:
+            stmt = stmt.where(ManualChunk.machine_code == machine_code)
+        stmt = stmt.order_by(distance).limit(k)
         rows = session.execute(stmt).all()
 
     return [

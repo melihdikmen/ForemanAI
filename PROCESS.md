@@ -259,7 +259,7 @@ Her faz şu başlıkları içerir: **Öğreneceklerim · Yapılacaklar · Bitti 
 | 7 Gözlemlenebilirlik | ⬜ | | | |
 | 8 Deploy + MCP | ⬜ | | | |
 | 9 Teslim | ⬜ | | | |
-| 10 Agentic RAG + çoklu agent (v2) | ⬜ | | | |
+| 10 Agentic RAG + çoklu agent (v2) | 🟡 | 2026-11-26 | | Agentic RAG yapıldı: makine-filtreli arama (precision), iteratif tekrar-arama, skor görünürlüğü. Doğruluk %93 (regresyon yok); kazanç kaynak temizliği+sağlamlık. Ders: easy eval farkı göstermiyor → zor soru seti gerek. Sub-agent ertelendi (opsiyonel) |
 | 11 Hafıza (v2) | ⬜ | | | |
 | 12 Self-improvement (v2) | ⬜ | | | |
 | 13 Otonomi + Sorumlu AI (v2) | ⬜ | | | |

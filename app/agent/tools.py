@@ -26,14 +26,19 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "search_manuals",
-            "description": "Makine kılavuzlarında arama yapar; arıza giderme, bakım ve "
-            "güvenlik adımları için ilgili kılavuz parçalarını kaynaklarıyla döndürür.",
+            "description": "Makine kılavuzlarında arar; parçaları kaynak ve benzerlik skoruyla "
+            "döndürür. Skor düşükse (ör. < 0.6) sorguyu daraltıp tekrar ara.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
                         "description": "Aranacak metin (ör. 'E-102 yağ sıcaklığı').",
+                    },
+                    "machine_code": {
+                        "type": "string",
+                        "description": "Soru bir makineye özgüyse o makinenin kodu (ör. 'PRES-1'); "
+                        "aramayı o kılavuzla sınırlar, gürültüyü azaltır.",
                     },
                 },
                 "required": ["query"],
