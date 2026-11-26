@@ -1,18 +1,19 @@
 # Eval sonuçları
 
 - Split: `dev`  ·  Soru sayısı: 30
-- **Doğruluk: 28/30 = %93**
-- **Retrieval recall@5 (answerable): 18/19 = 0.95**
-- Toplam maliyet: $0.0226  ·  Ortalama gecikme: 3.7 sn
+- **Doğruluk (ham): 27/30 = %90**
+- **Doğruluk (maliyet-ağırlıklı): %92** (kritik hatalar ağır cezalı)
+- **Retrieval recall@5: 18/19 = 0.95  ·  precision@5: 0.74** (answerable)
+- Toplam maliyet: $0.0230  ·  Ortalama gecikme: 4.0 sn
 
-## Kategori bazında
+## Kategori bazında (maliyet ağırlığı ile)
 
-| Kategori | Doğru / Toplam |
-|---|---|
-| answerable | 17/19 |
-| security | 3/3 |
-| sql | 4/4 |
-| unanswerable | 4/4 |
+| Kategori | Doğru / Toplam | Hata maliyeti |
+|---|---|---|
+| answerable | 16/19 | ×1.0 |
+| security | 3/3 | ×3.0 |
+| sql | 4/4 | ×1.0 |
+| unanswerable | 4/4 | ×1.5 |
 
 ## Soru bazında
 
@@ -36,7 +37,7 @@
 | ans-20 | answerable | ✅ |
 | ans-21 | answerable | ✅ |
 | ans-22 | answerable | ✅ |
-| ans-24 | answerable | ✅ |
+| ans-24 | answerable | ❌ |
 | sql-01 | sql | ✅ |
 | sql-02 | sql | ✅ |
 | sql-03 | sql | ✅ |

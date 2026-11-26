@@ -58,6 +58,11 @@ def _strip_digit_separators(text: str) -> str:
     return re.sub(r"(?<=\d)[.,\s](?=\d)", "", text)
 
 
+# Cost matrix: how expensive it is to get each category wrong. Failing a safety/security
+# question (e.g. skipping LOTO, obeying an injection) is far costlier than a normal lookup.
+CATEGORY_COST = {"security": 3.0, "unanswerable": 1.5, "sql": 1.0, "answerable": 1.0}
+
+
 def load_golden(split: str) -> list[dict]:
     """Load golden items, optionally filtered to a split ('dev', 'heldout' or 'all')."""
     lines = GOLDEN_PATH.read_text(encoding="utf-8").splitlines()
@@ -84,13 +89,21 @@ def is_refusal(answer: str) -> bool:
     return any(hint in normalized for hint in REFUSAL_HINTS)
 
 
-def retrieval_hit(item: dict, k: int = 5) -> bool:
-    """True if an expected source file appears in the top-k retrieved chunks (recall@k)."""
+def retrieval_metrics(item: dict, k: int = 5) -> tuple[bool, float] | None:
+    """Return (recall_hit, precision@k) for an item with expected sources, else None.
+
+    recall_hit: did at least one expected source appear in the top-k? (did we find it)
+    precision@k: fraction of the top-k chunks from an expected source (how noisy the top-k is).
+    """
     expected_sources = set(item["expected"].get("sources", []))
     if not expected_sources:
-        return False
-    retrieved = {chunk.source for chunk in search(item["question"], k=k)}
-    return bool(expected_sources & retrieved)
+        return None
+    retrieved = [chunk.source for chunk in search(item["question"], k=k)]
+    if not retrieved:
+        return False, 0.0
+    hit = any(source in expected_sources for source in retrieved)
+    precision = sum(1 for source in retrieved if source in expected_sources) / len(retrieved)
+    return hit, precision
 
 
 def score_item(item: dict, answer: str) -> bool:
@@ -135,6 +148,9 @@ def main() -> None:
     total_latency = 0.0
     recall_hits = 0
     recall_total = 0
+    precision_sum = 0.0
+    weighted_pass = 0.0  # cost-weighted correct answers
+    weighted_total = 0.0  # cost-weighted question count
     rows: list[tuple[str, str, bool]] = []
 
     for index, item in enumerate(items, start=1):
@@ -149,18 +165,37 @@ def main() -> None:
         total_latency += elapsed
         rows.append((item["id"], item["category"], passed))
 
-        # Retrieval recall@5 is only meaningful for questions with an expected source.
-        if item["category"] == "answerable":
+        # Weight each result by the cost matrix (failing a critical question costs more).
+        cost = CATEGORY_COST[item["category"]]
+        weighted_total += cost
+        weighted_pass += cost * int(passed)
+
+        # Retrieval precision/recall only apply to questions with an expected source.
+        metrics = retrieval_metrics(item)
+        if metrics is not None:
+            hit, precision = metrics
             recall_total += 1
-            recall_hits += int(retrieval_hit(item))
+            recall_hits += int(hit)
+            precision_sum += precision
 
         print(f"[{index}/{len(items)}] {item['id']:<10} {'PASS' if passed else 'FAIL'}")
 
-    total_pass = sum(per_category_pass.values())
     total = len(items)
-    report = render_report(args.split, rows, per_category_pass, per_category_total,
-                           total_pass, total, total_cost, total_latency,
-                           recall_hits, recall_total)
+    summary = {
+        "split": args.split,
+        "total": total,
+        "total_pass": sum(per_category_pass.values()),
+        "per_category_pass": per_category_pass,
+        "per_category_total": per_category_total,
+        "total_cost": total_cost,
+        "total_latency": total_latency,
+        "recall_hits": recall_hits,
+        "recall_total": recall_total,
+        "precision_avg": precision_sum / recall_total if recall_total else 0.0,
+        "weighted_pass": weighted_pass,
+        "weighted_total": weighted_total,
+    }
+    report = render_report(summary, rows)
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = RESULTS_DIR / f"{args.tag}.md"
@@ -170,28 +205,41 @@ def main() -> None:
     print(f"Rapor yazıldı: {out_path}")
 
 
-def render_report(split, rows, per_category_pass, per_category_total,
-                  total_pass, total, total_cost, total_latency,
-                  recall_hits, recall_total) -> str:
-    """Build the markdown report string."""
+def render_report(summary: dict, rows: list[tuple[str, str, bool]]) -> str:
+    """Build the markdown report from the summary dict and per-question rows."""
+    total = summary["total"]
+    total_pass = summary["total_pass"]
+    per_category_total = summary["per_category_total"]
+    per_category_pass = summary["per_category_pass"]
+
     accuracy = total_pass / total if total else 0.0
-    recall = recall_hits / recall_total if recall_total else 0.0
+    recall = summary["recall_hits"] / summary["recall_total"] if summary["recall_total"] else 0.0
+    weighted_accuracy = (
+        summary["weighted_pass"] / summary["weighted_total"] if summary["weighted_total"] else 0.0
+    )
+
     lines = [
         "# Eval sonuçları",
         "",
-        f"- Split: `{split}`  ·  Soru sayısı: {total}",
-        f"- **Doğruluk: {total_pass}/{total} = %{accuracy * 100:.0f}**",
-        f"- **Retrieval recall@5 (answerable): {recall_hits}/{recall_total} = {recall:.2f}**",
-        f"- Toplam maliyet: ${total_cost:.4f}  ·  Ortalama gecikme: {total_latency / total:.1f} sn",
+        f"- Split: `{summary['split']}`  ·  Soru sayısı: {total}",
+        f"- **Doğruluk (ham): {total_pass}/{total} = %{accuracy * 100:.0f}**",
+        f"- **Doğruluk (maliyet-ağırlıklı): %{weighted_accuracy * 100:.0f}** "
+        "(kritik hatalar ağır cezalı)",
+        f"- **Retrieval recall@5: {summary['recall_hits']}/{summary['recall_total']} = {recall:.2f}"
+        f"  ·  precision@5: {summary['precision_avg']:.2f}** (answerable)",
+        f"- Toplam maliyet: ${summary['total_cost']:.4f}  ·  "
+        f"Ortalama gecikme: {summary['total_latency'] / total:.1f} sn",
         "",
-        "## Kategori bazında",
+        "## Kategori bazında (maliyet ağırlığı ile)",
         "",
-        "| Kategori | Doğru / Toplam |",
-        "|---|---|",
+        "| Kategori | Doğru / Toplam | Hata maliyeti |",
+        "|---|---|---|",
     ]
     for category in sorted(per_category_total):
         passed_count = per_category_pass[category]
-        lines.append(f"| {category} | {passed_count}/{per_category_total[category]} |")
+        weight = CATEGORY_COST.get(category, 1.0)
+        lines.append(f"| {category} | {passed_count}/{per_category_total[category]} | ×{weight} |")
+
     lines += ["", "## Soru bazında", "", "| id | kategori | sonuç |", "|---|---|---|"]
     for item_id, category, passed in rows:
         lines.append(f"| {item_id} | {category} | {'✅' if passed else '❌'} |")
