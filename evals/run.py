@@ -24,6 +24,7 @@ from sqlalchemy import text  # noqa: E402
 
 from app.assistant import answer_question  # noqa: E402
 from app.db import engine  # noqa: E402
+from app.rag.retriever import search  # noqa: E402
 
 GOLDEN_PATH = REPO_ROOT / "evals" / "golden.jsonl"
 RESULTS_DIR = REPO_ROOT / "evals" / "results"
@@ -69,6 +70,15 @@ def is_refusal(answer: str) -> bool:
     return any(hint in normalized for hint in REFUSAL_HINTS)
 
 
+def retrieval_hit(item: dict, k: int = 5) -> bool:
+    """True if an expected source file appears in the top-k retrieved chunks (recall@k)."""
+    expected_sources = set(item["expected"].get("sources", []))
+    if not expected_sources:
+        return False
+    retrieved = {chunk.source for chunk in search(item["question"], k=k)}
+    return bool(expected_sources & retrieved)
+
+
 def score_item(item: dict, answer: str) -> bool:
     """Return True if the assistant's answer satisfies the item's expectation."""
     expected = item["expected"]
@@ -100,6 +110,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Run the golden eval set.")
     parser.add_argument("--split", default="dev", choices=["dev", "heldout", "all"])
+    parser.add_argument("--tag", default="latest", help="output file name (results/<tag>.md)")
     args = parser.parse_args()
 
     items = load_golden(args.split)
@@ -107,6 +118,8 @@ def main() -> None:
     per_category_total: dict[str, int] = defaultdict(int)
     total_cost = 0.0
     total_latency = 0.0
+    recall_hits = 0
+    recall_total = 0
     rows: list[tuple[str, str, bool]] = []
 
     for index, item in enumerate(items, start=1):
@@ -120,15 +133,22 @@ def main() -> None:
         total_cost += result.cost_usd or 0.0
         total_latency += elapsed
         rows.append((item["id"], item["category"], passed))
+
+        # Retrieval recall@5 is only meaningful for questions with an expected source.
+        if item["category"] == "answerable":
+            recall_total += 1
+            recall_hits += int(retrieval_hit(item))
+
         print(f"[{index}/{len(items)}] {item['id']:<10} {'PASS' if passed else 'FAIL'}")
 
     total_pass = sum(per_category_pass.values())
     total = len(items)
     report = render_report(args.split, rows, per_category_pass, per_category_total,
-                           total_pass, total, total_cost, total_latency)
+                           total_pass, total, total_cost, total_latency,
+                           recall_hits, recall_total)
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = RESULTS_DIR / "faz2.md"
+    out_path = RESULTS_DIR / f"{args.tag}.md"
     out_path.write_text(report, encoding="utf-8")
 
     print("\n" + report)
@@ -136,14 +156,17 @@ def main() -> None:
 
 
 def render_report(split, rows, per_category_pass, per_category_total,
-                  total_pass, total, total_cost, total_latency) -> str:
+                  total_pass, total, total_cost, total_latency,
+                  recall_hits, recall_total) -> str:
     """Build the markdown report string."""
     accuracy = total_pass / total if total else 0.0
+    recall = recall_hits / recall_total if recall_total else 0.0
     lines = [
-        "# Faz 2 — Baseline eval sonuçları",
+        "# Eval sonuçları",
         "",
         f"- Split: `{split}`  ·  Soru sayısı: {total}",
         f"- **Doğruluk: {total_pass}/{total} = %{accuracy * 100:.0f}**",
+        f"- **Retrieval recall@5 (answerable): {recall_hits}/{recall_total} = {recall:.2f}**",
         f"- Toplam maliyet: ${total_cost:.4f}  ·  Ortalama gecikme: {total_latency / total:.1f} sn",
         "",
         "## Kategori bazında",

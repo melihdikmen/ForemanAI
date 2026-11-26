@@ -195,7 +195,7 @@ Her faz şu başlıkları içerir: **Öğreneceklerim · Yapılacaklar · Bitti 
 | 0 Kurulum | ✅ | 2026-11-26 | 2026-11-26 | uv+ruff+pytest kuruldu, app/ yapısı, .env(.example), Docker Postgres16+pgvector çalışıyor, pytest yeşil |
 | 1 Veri + eval | ✅ | 2026-11-26 | 2026-11-26 | 3 tablo+migration (SQLAlchemy/Alembic), 6 kılavuz, seed 6 makine+202 kayıt (2 injection tuzağı), 40 soruluk golden.jsonl (30 dev/10 held-out) + yapısal testler |
 | 2 Baseline | ✅ | 2026-11-26 | 2026-11-26 | app/llm.py (OpenRouter, token/maliyet log), POST /ask, evals/run.py. Model: claude-haiku-5.5. Baseline dev %63 (ans 13/19, sql 0/4, unans 4/4, sec 2/3) |
-| 3 RAG | ⬜ | | | |
+| 3 RAG | ✅ | 2026-11-26 | 2026-11-26 | fastembed (MiniLM-384) + pgvector, 61 chunk, vektör arama + kaynak gösterme. Dev doğruluk %63→%77, recall@5=0.95 (hedef ≥0.85). Hibrit arama (3.8) atlandı (recall yeterli) |
 | 4 Agent | ⬜ | | | |
 | 5 HITL | ⬜ | | | |
 | 6 Güvenlik | ⬜ | | | |

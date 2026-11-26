@@ -5,10 +5,12 @@ from __future__ import annotations
 import enum
 from datetime import datetime
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
+from app.embedding import EMBEDDING_DIM
 
 
 class Severity(enum.StrEnum):
@@ -100,3 +102,17 @@ class WorkOrder(Base):
     approved_at: Mapped[datetime | None]
 
     machine: Mapped[Machine] = relationship(back_populates="work_orders")
+
+
+class ManualChunk(Base):
+    """One heading-based chunk of a manual plus its embedding, for RAG retrieval."""
+
+    __tablename__ = "manual_chunks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    machine_code: Mapped[str] = mapped_column(String(20), index=True)  # e.g. "PRES-3"
+    source: Mapped[str] = mapped_column(String(100))  # file name, e.g. "PRES-3.md"
+    section: Mapped[str] = mapped_column(String(200))  # heading text
+    content: Mapped[str] = mapped_column(Text)  # embedded text (title + heading + body)
+    alarm_codes: Mapped[str | None] = mapped_column(String(200))  # comma-joined, e.g. "E-101,E-102"
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM))
