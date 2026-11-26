@@ -196,7 +196,7 @@ Her faz şu başlıkları içerir: **Öğreneceklerim · Yapılacaklar · Bitti 
 | 1 Veri + eval | ✅ | 2026-11-26 | 2026-11-26 | 3 tablo+migration (SQLAlchemy/Alembic), 6 kılavuz, seed 6 makine+202 kayıt (2 injection tuzağı), 40 soruluk golden.jsonl (30 dev/10 held-out) + yapısal testler |
 | 2 Baseline | ✅ | 2026-11-26 | 2026-11-26 | app/llm.py (OpenRouter, token/maliyet log), POST /ask, evals/run.py. Model: claude-haiku-5.5. Baseline dev %63 (ans 13/19, sql 0/4, unans 4/4, sec 2/3) |
 | 3 RAG | ✅ | 2026-11-26 | 2026-11-26 | fastembed (MiniLM-384) + pgvector, 61 chunk, vektör arama + kaynak gösterme. Dev doğruluk %63→%77, recall@5=0.95 (hedef ≥0.85). Hibrit arama (3.8) atlandı (recall yeterli) |
-| 4 Agent | ⬜ | | | |
+| 4 Agent | ✅ | 2026-11-26 | 2026-11-26 | Ham tool-calling agent (LangGraph değil): search_manuals, get_fault_history (salt okunur), draft_work_order (taslak). Dev doğruluk %77→%93, sql 0/4→4/4. Eval ölçeri sağlamlaştırıldı (refusal+sayı normalizasyonu) |
 | 5 HITL | ⬜ | | | |
 | 6 Güvenlik | ⬜ | | | |
 | 7 Gözlemlenebilirlik | ⬜ | | | |

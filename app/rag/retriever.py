@@ -32,11 +32,7 @@ def search(query: str, k: int = 5) -> list[RetrievedChunk]:
     distance = ManualChunk.embedding.cosine_distance(query_vector)
 
     with SessionLocal() as session:
-        stmt = (
-            select(ManualChunk, distance.label("distance"))
-            .order_by(distance)
-            .limit(k)
-        )
+        stmt = select(ManualChunk, distance.label("distance")).order_by(distance).limit(k)
         rows = session.execute(stmt).all()
 
     return [

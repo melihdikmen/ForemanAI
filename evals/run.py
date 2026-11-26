@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import time
 from collections import defaultdict
@@ -22,7 +23,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from sqlalchemy import text  # noqa: E402
 
-from app.assistant import answer_question  # noqa: E402
+from app.agent.loop import run_agent  # noqa: E402
 from app.db import engine  # noqa: E402
 from app.rag.retriever import search  # noqa: E402
 
@@ -41,7 +42,20 @@ REFUSAL_HINTS = [
     "sahip değilim",
     "yardımcı olamam",
     "paylaşamam",
+    "erişimim yok",
+    "erişemiyorum",
+    "ulaşamıyorum",
+    "yer almıyor",
+    "bulunmuyor",
+    "bunların dışında",
+    "kapsamı dışında",
+    "kapsamında değil",
 ]
+
+
+def _strip_digit_separators(text: str) -> str:
+    """Remove thousands separators between digits so '6.697' matches '6697'."""
+    return re.sub(r"(?<=\d)[.,\s](?=\d)", "", text)
 
 
 def load_golden(split: str) -> list[dict]:
@@ -86,8 +100,9 @@ def score_item(item: dict, answer: str) -> bool:
     category = item["category"]
 
     if category == "sql":
-        # Correct if the ground-truth value appears somewhere in the answer.
-        return _norm(ground_truth_sql(expected["golden_sql"])) in normalized
+        # Correct if the ground-truth value appears in the answer (ignoring 1.000-style separators).
+        ground_truth = _norm(ground_truth_sql(expected["golden_sql"]))
+        return ground_truth in _strip_digit_separators(normalized)
 
     if category == "unanswerable":
         return is_refusal(answer)
@@ -124,7 +139,7 @@ def main() -> None:
 
     for index, item in enumerate(items, start=1):
         start = time.perf_counter()
-        result = answer_question(item["question"])
+        result = run_agent(item["question"])
         elapsed = time.perf_counter() - start
 
         passed = score_item(item, result.answer)
