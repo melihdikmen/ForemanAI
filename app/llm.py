@@ -19,7 +19,13 @@ logger = logging.getLogger("foremanai.llm")
 _settings = get_settings()
 
 # One shared client pointed at OpenRouter's OpenAI-compatible API.
-_client = OpenAI(api_key=_settings.openrouter_api_key, base_url=_settings.openrouter_base_url)
+# As a gateway it also owns resilience: retry transient failures (429/5xx) and cap latency.
+_client = OpenAI(
+    api_key=_settings.openrouter_api_key,
+    base_url=_settings.openrouter_base_url,
+    max_retries=3,  # automatic exponential-backoff retries on rate limits / 5xx
+    timeout=30.0,  # seconds before a single call is abandoned
+)
 
 
 class LLMResult(BaseModel):
