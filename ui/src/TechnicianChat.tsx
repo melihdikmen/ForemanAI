@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import {
+  AlertCircle,
   ArrowUp,
   Bot,
   CheckCircle2,
@@ -7,6 +8,7 @@ import {
   FileEdit,
   Loader2,
   RefreshCw,
+  RotateCcw,
   Send,
   Sparkles,
 } from 'lucide-react'
@@ -22,6 +24,7 @@ interface ChatMessage {
   text: string
   toolCalls: string[]
   drafts: WorkOrderDraft[]
+  failed?: boolean // technician turn whose answer never arrived (server down, crash...)
 }
 
 /** Starter questions shown on an empty chat (real machine and alarm codes from the seed). */
@@ -90,15 +93,21 @@ export function TechnicianChat({ user, notify }: Props) {
     textarea.style.height = `${Math.min(textarea.scrollHeight, COMPOSER_MAX_HEIGHT)}px`
   }, [question])
 
-  async function ask(text: string) {
+  /**
+   * Send a question. With `retryMessageId`, re-sends an earlier failed question instead
+   * of adding a new bubble. Safe to retry: /ask is read-only, so nothing happens twice.
+   */
+  async function ask(text: string, retryMessageId?: number) {
     const trimmed = text.trim()
     if (!trimmed || isAsking) return
     setIsAsking(true)
     setQuestion('')
-    setMessages((prev) => [
-      ...prev,
-      { id: Date.now(), author: 'technician', text: trimmed, toolCalls: [], drafts: [] },
-    ])
+    const questionId = retryMessageId ?? Date.now()
+    setMessages((prev) =>
+      retryMessageId === undefined
+        ? [...prev, { id: questionId, author: 'technician', text: trimmed, toolCalls: [], drafts: [] }]
+        : prev.map((message) => (message.id === questionId ? { ...message, failed: false } : message)),
+    )
     try {
       const response = await api.ask(user, trimmed)
       setMessages((prev) => [
@@ -112,6 +121,10 @@ export function TechnicianChat({ user, notify }: Props) {
         },
       ])
     } catch (err) {
+      // Keep the question on screen and mark it failed so it can be retried in one click.
+      setMessages((prev) =>
+        prev.map((message) => (message.id === questionId ? { ...message, failed: true } : message)),
+      )
       notify('error', `Asistan cevap veremedi: ${(err as Error).message}`)
     } finally {
       setIsAsking(false)
@@ -151,10 +164,26 @@ export function TechnicianChat({ user, notify }: Props) {
 
             {messages.map((message) =>
               message.author === 'technician' ? (
-                <div key={message.id} className="flex justify-end">
-                  <div className="max-w-[85%] rounded-2xl rounded-br-md bg-slate-900 px-4 py-2.5 text-sm whitespace-pre-wrap text-white">
+                <div key={message.id} className="flex flex-col items-end gap-1.5">
+                  <div
+                    className={`max-w-[85%] rounded-2xl rounded-br-md px-4 py-2.5 text-sm whitespace-pre-wrap text-white ${
+                      message.failed ? 'bg-slate-400' : 'bg-slate-900'
+                    }`}
+                  >
                     {message.text}
                   </div>
+                  {message.failed && (
+                    <div className="flex items-center gap-2 text-xs text-red-600">
+                      <AlertCircle className="size-3.5" /> Cevap alınamadı
+                      <button
+                        onClick={() => void ask(message.text, message.id)}
+                        disabled={isAsking}
+                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2 py-1 font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                      >
+                        <RotateCcw className="size-3.5" /> Tekrar dene
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div key={message.id} className="flex gap-3">
