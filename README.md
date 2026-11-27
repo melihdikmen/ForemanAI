@@ -178,6 +178,7 @@ ui/           React + Vite + Tailwind: technician chat, foreman approval queue
 - [PROCESS.md](PROCESS.md) — the plan, every phase's decisions and measurements, status table
 - [SECURITY.md](SECURITY.md) — threat model, mitigations, what was measured, known limits
 - [HANDOVER.md](HANDOVER.md) — runbook: deploy, secrets, rollback, re-seed, troubleshooting
+- [RESPONSIBLE_AI.md](RESPONSIBLE_AI.md) — autonomy level of every operation and why; risks, mitigations, limits
 - [docs/STORY.md](docs/STORY.md) — demo script and the short version of the story
 
 Built with Python 3.12, FastAPI, SQLAlchemy/Alembic, pgvector, fastembed, OpenRouter, Langfuse,

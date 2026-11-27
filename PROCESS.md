@@ -369,10 +369,18 @@ eval gate plus the saved `evals/results/<tag>.answers.jsonl` make the before/aft
 ### Phase 13 — Autonomy levels and Responsible AI
 **What I will learn:** autonomy levels (suggestion → approved action → autonomous action), responsible AI (fairness, transparency, accountability, misuse).
 **To do:**
-- [ ] **Autonomy table:** for each operation (answer, SQL query, work-order draft, work-order save) which level — automatic, human-approved, or forbidden — and **why**
-- [ ] **Responsible AI assessment:** safety impact of a wrong diagnosis, privacy of staff data, injection/misuse, "who is responsible if the assistant makes a mistake"
-- [ ] `RESPONSIBLE_AI.md`: autonomy table + risks/mitigations + limits
+- [x] **Autonomy table:** for each operation (answer, SQL query, work-order draft, work-order save) which level — automatic, human-approved, or forbidden — and **why**
+- [x] **Responsible AI assessment:** safety impact of a wrong diagnosis, privacy of staff data, injection/misuse, "who is responsible if the assistant makes a mistake"
+- [x] `RESPONSIBLE_AI.md`: autonomy table + risks/mitigations + limits
 **Done criterion:** Autonomy table and responsible AI document written; the code conforms to the table (e.g. saving a work order is never autonomous).
+
+**Decision applied (2026-11-27):** Five levels defined (L0 forbidden … L4 autonomous); the system uses
+only L0, L1, L3: reading is L3 bounded by the read-only role, drafting is L1, persisting/sending/
+self-modifying is L0. `tests/test_autonomy.py` binds the code to the table: the agent's tool set must
+equal the documented five, the only non-read tool must return a draft, and tool modules must not import
+an HTTP/mail client. Privacy finding while writing it: no tool returns a person's name (aggregates,
+`list_recent_faults` omits `technician_name`, `list_recent_rejections` omits requester/decider), and
+per-technician aggregation is deliberately unsupported. Gap recorded: no retention policy on traces.
 **Control questions:** Which operation is unacceptable to make autonomous, and why? What is the condition for raising autonomy (which eval threshold)?
 
 ---
@@ -394,7 +402,7 @@ eval gate plus the saved `evals/results/<tag>.answers.jsonl` make the before/aft
 | 10 Agentic RAG + multi-agent (v2) | ✅ | 2026-11-26 | 2026-11-26 | Agentic RAG: machine-filtered search, iterative re-search, score visibility. A/B on the hard question set (evals/hard.jsonl): single-shot 80% vs agentic 100% (cost ~58% higher). A/B via run.py --file/--mode. Sub-agents deferred (optional) |
 | 11 Memory (v2) | ✅ | 2026-11-27 | 2026-11-27 | Conversation memory: UI replays last 6 turns, server trims, untrusted (fabricated-approval item held out). No long-term store: `list_recent_rejections` tool over foreman decisions instead, consulted before drafting. Found+fixed a since_months boundary bug and a scorer gap. Golden 49. Dev 100% (38/38), p95 9.5 s |
 | 12 Self-improvement (v2) | ⏭️ skipped | 2026-11-27 | 2026-11-27 | Deliberately not built: dev at 100%, no production signal to learn from; ingredients (rejections tool, --runs, held-out guard, judge) are in place if real usage arrives |
-| 13 Autonomy + Responsible AI (v2) | ⬜ | | | |
+| 13 Autonomy + Responsible AI (v2) | ✅ | 2026-11-27 | 2026-11-27 | RESPONSIBLE_AI.md: L0–L4 levels, per-operation table with enforcing mechanism, conditions to raise a level, assessment (safety, injection, privacy, fairness, transparency, accountability, limits). tests/test_autonomy.py locks code to the table |
 
 ## 9. Open questions
 
