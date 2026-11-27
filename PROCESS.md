@@ -263,11 +263,18 @@ Dev 91% (noise ±5%, security 5/5); held-out run for the first time: 80%.
 
 ### Phase 9 — Delivery and story (2 days)
 **To do:**
-- [ ] README: problem, architecture diagram, eval results (phase-by-phase improvement table), security design, cost
-- [ ] 2–3 minute demo video
-- [ ] `HANDOVER.md`: how someone else operates this system (runbook)
-- [ ] LinkedIn post
-- [ ] Interview story: "How I solved a maintenance team's problem in a measurable way"
+- [x] README: problem, architecture diagram, eval results (phase-by-phase improvement table), security design, cost
+- [ ] 2–3 minute demo video — script ready in `docs/STORY.md`, recording is manual
+- [x] `HANDOVER.md`: how someone else operates this system (runbook)
+- [x] LinkedIn post — draft (TR + EN) in `docs/STORY.md`
+- [x] Interview story: "How I solved a maintenance team's problem in a measurable way" — STAR version in `docs/STORY.md`
+
+**Decision applied (2026-11-27):** README is written for a reader who has 3 minutes: what it does,
+one diagram, the "chose X instead of Y" table, the phase-by-phase results table, three lessons, cost,
+how to run. HANDOVER.md is a runbook of commands that were actually executed (deploy, rollback, secret
+rotation with the newline pitfall, re-seed, troubleshooting table, tear-down). The repo is public;
+git history was scanned for secrets (none; only placeholders). Held-out failures are described as
+*suspected* scorer gaps, not confirmed, because the set was not re-run.
 
 ---
 
@@ -347,7 +354,17 @@ Dev 91% (noise ±5%, security 5/5); held-out run for the first time: 80%.
 - [ ] Build a loop that improves prompt/few-shot/retrieval settings from that signal
 - [ ] **Held-out guard:** validate every improvement on the held-out set; roll back if it drops (prevent overfitting)
 **Done criterion:** At least one improvement derived from rejection reasons raises the dev score without lowering the held-out score.
+
+**Decision (2026-11-27): not done, deliberately.** The dev set is at 100% and there is no production
+traffic, so there is no signal to improve from and no gap to close; a loop built now would optimize
+noise. The ingredients exist if real usage arrives: rejection reasons are stored and already read by
+the agent (Phase 11), the eval runner has `--runs` for noise and a held-out split as the guard, and
+the judge gives a second opinion on scorer vs. model failures. The one measurable gap left (p95 9.5 s
+on the drafting path, 4 tool calls) is a latency problem, not a quality loop.
 **Control questions:** What does improving on dev but dropping on held-out indicate? How do we roll an improvement back?
+*Answered without building it:* dev up / held-out down means the change learned the dev questions
+(overfitting the prompt or keywords to them), not the task; roll back = revert the commit, and the CI
+eval gate plus the saved `evals/results/<tag>.answers.jsonl` make the before/after comparable.
 
 ### Phase 13 — Autonomy levels and Responsible AI
 **What I will learn:** autonomy levels (suggestion → approved action → autonomous action), responsible AI (fairness, transparency, accountability, misuse).
@@ -373,10 +390,10 @@ Dev 91% (noise ±5%, security 5/5); held-out run for the first time: 80%.
 | 6 Security | ✅ | 2026-11-27 | 2026-11-27 | Read-only Postgres role (proven by test), `list_recent_faults` + `<fault_record>` tag, regex output guard + UI warning, SECURITY.md. Golden 42 questions (7 security). Dev 91% (security 5/5), held-out first run 80% (sec-02, unans-04 failed) |
 | 7 Observability | ✅ | 2026-11-27 | 2026-11-27 | run.py: MRR, p50/p95, cost per query, `--runs` (3 runs: 93%, 4 flaky), `--min-accuracy`. LLM-as-judge (Sonnet) found 3 scorer bugs (Turkish I, keyword brittleness, refusal patterns); 10 manual labels: judge 10/10, keyword 7/10. Langfuse traces (agent→generation→tool→retriever). GitHub Actions CI (waiting for push). Dev 97% |
 | 8 Deploy + MCP | ✅ | 2026-11-27 | 2026-11-27 | Multi-stage Docker image (API + UI, model baked in), compose. Cloud Run (europe-west1) + Neon Postgres, Secret Manager. CI/CD with eval gate and WIF (no key file). MCP server (stdio) connected from Claude Desktop. Two env-difference bugs fixed (secret newline, exec bit). Cold start 13–17 s |
-| 9 Delivery | ⬜ | | | |
+| 9 Delivery | ✅ | 2026-11-27 | 2026-11-27 | README (diagram, decisions table, results 63%→100%, lessons, cost), HANDOVER.md runbook, docs/STORY.md (demo script, LinkedIn TR/EN, STAR interview answer). Repo public, history scanned for secrets. Video not recorded yet |
 | 10 Agentic RAG + multi-agent (v2) | ✅ | 2026-11-26 | 2026-11-26 | Agentic RAG: machine-filtered search, iterative re-search, score visibility. A/B on the hard question set (evals/hard.jsonl): single-shot 80% vs agentic 100% (cost ~58% higher). A/B via run.py --file/--mode. Sub-agents deferred (optional) |
 | 11 Memory (v2) | ✅ | 2026-11-27 | 2026-11-27 | Conversation memory: UI replays last 6 turns, server trims, untrusted (fabricated-approval item held out). No long-term store: `list_recent_rejections` tool over foreman decisions instead, consulted before drafting. Found+fixed a since_months boundary bug and a scorer gap. Golden 49. Dev 100% (38/38), p95 9.5 s |
-| 12 Self-improvement (v2) | ⬜ | | | |
+| 12 Self-improvement (v2) | ⏭️ skipped | 2026-11-27 | 2026-11-27 | Deliberately not built: dev at 100%, no production signal to learn from; ingredients (rejections tool, --runs, held-out guard, judge) are in place if real usage arrives |
 | 13 Autonomy + Responsible AI (v2) | ⬜ | | | |
 
 ## 9. Open questions
