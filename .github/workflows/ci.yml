@@ -80,3 +80,55 @@ jobs:
           path: |
             evals/results/ci.md
             evals/results/ci.answers.jsonl
+
+  # Deploy: only after the eval gate passed, only for pushes to master (not PRs).
+  # Auth uses Workload Identity Federation: GitHub's OIDC token is exchanged for a
+  # short-lived Google credential, so no service-account key file lives in GitHub.
+  deploy:
+    needs: test-and-eval
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write   # needed to request the OIDC token
+    env:
+      REGION: europe-west1
+      IMAGE: europe-west1-docker.pkg.dev/foremanai-261127/foremanai/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/998448097011/locations/global/workloadIdentityPools/github/providers/github-oidc
+          service_account: github-deployer@foremanai-261127.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Docker login to Artifact Registry
+        run: gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image (tagged with the commit sha)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Keeps the service's env vars and secrets; only the image changes.
+      - name: Deploy to Cloud Run
+        run: gcloud run deploy foremanai --region "$REGION" --image "$IMAGE:${{ github.sha }}" --quiet
+
+      - name: Smoke test
+        run: |
+          URL=$(gcloud run services describe foremanai --region "$REGION" --format 'value(status.url)')
+          curl -fsS "$URL/health"
+          echo "deployed: $URL"
