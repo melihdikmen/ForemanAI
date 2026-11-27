@@ -7,7 +7,6 @@ and return a compact summary (totals + breakdowns). It never writes to the datab
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
@@ -36,8 +35,11 @@ def get_fault_history(
     if machine_code:
         conditions.append(Machine.code == machine_code)
     if since_months is not None:
+        # Cut off in SQL with a calendar interval, on the database clock. The old
+        # Python `now() - 30*N days` disagreed with the DB (local vs UTC clock, 30-day
+        # months) and missed a record right at the boundary (found by eval mt-01).
         conditions.append(
-            FaultRecord.occurred_at >= datetime.now() - timedelta(days=30 * since_months)
+            FaultRecord.occurred_at >= func.now() - func.make_interval(0, since_months)
         )
     if alarm_code:
         conditions.append(FaultRecord.alarm_code == alarm_code)
