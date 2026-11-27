@@ -24,6 +24,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from sqlalchemy import text  # noqa: E402
 
+from app.agent.history import ChatTurn  # noqa: E402
 from app.agent.loop import run_agent  # noqa: E402
 from app.assistant import answer_question  # noqa: E402 — one-shot RAG, for A/B comparison
 from app.db import engine  # noqa: E402
@@ -103,10 +104,18 @@ def _any_alternative(keyword: str, normalized_answer: str) -> bool:
     return any(_norm(alt.strip()) in normalized_answer for alt in keyword.split("|"))
 
 
+# "<bilgi|veri|kayıt> ... yok" within one sentence, e.g. "fiyat bilgisi kılavuzda ve
+# araçlarda yok". Catches refusals whose exact wording is not in REFUSAL_HINTS (found via
+# unans-02 in phase 11: a correct refusal the hint list missed).
+_REFUSAL_PATTERN = re.compile(r"\b(bilgi\w*|veri\w*|kayıt|kayd\w*)\b[^.\n]{0,60}\byok(tur)?\b")
+
+
 def is_refusal(answer: str) -> bool:
     """True if the answer contains a phrase signalling a refusal / 'I don't know'."""
     normalized = _norm(answer)
-    return any(hint in normalized for hint in REFUSAL_HINTS)
+    if any(hint in normalized for hint in REFUSAL_HINTS):
+        return True
+    return _REFUSAL_PATTERN.search(normalized) is not None
 
 
 def retrieval_metrics(item: dict, k: int = 5) -> tuple[bool, float, float] | None:
@@ -116,8 +125,12 @@ def retrieval_metrics(item: dict, k: int = 5) -> tuple[bool, float, float] | Non
     precision@k: fraction of the top-k chunks from an expected source (how noisy the top-k is).
     reciprocal_rank: 1/position of the first expected source (1.0 = top hit, 0 = not in top-k).
         Averaged over items this is MRR: "how high does the right chunk usually land?"
-    Returns None when the item has no expected sources.
+    Returns None when the item has no expected sources, or when it is a multi-turn item:
+    a follow-up like "bunun giderme adımları neler?" is meaningless as a raw vector query;
+    the agent resolves it from the conversation, so single-query retrieval is not measured.
     """
+    if item.get("history"):
+        return None
     expected_sources = set(item["expected"].get("sources", []))
     if not expected_sources:
         return None
@@ -219,8 +232,14 @@ def main() -> None:
     for index, item in enumerate(items, start=1):
         passes = 0
         for run_number in range(1, runs + 1):
+            # Multi-turn items carry earlier turns; only the agent understands them
+            # (the one-shot RAG baseline has no conversation memory).
+            history = [ChatTurn(**turn) for turn in item.get("history", [])]
             start = time.perf_counter()
-            result = answer_fn(item["question"])
+            if args.mode == "agent":
+                result = answer_fn(item["question"], history=history)
+            else:
+                result = answer_fn(item["question"])
             latencies.append(time.perf_counter() - start)
 
             passed = score_item(item, result.answer)
@@ -232,6 +251,7 @@ def main() -> None:
                     "run": run_number,
                     "category": item["category"],
                     "question": item["question"],
+                    "history": item.get("history", []),
                     "expected": item["expected"],
                     "answer": result.answer,
                     "keyword_pass": passed,

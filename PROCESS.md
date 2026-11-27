@@ -289,12 +289,36 @@ Dev 91% (noise ±5%, security 5/5); held-out run for the first time: 80%.
 ### Phase 11 — Memory
 **What I will learn:** short-term (conversation) vs long-term memory, writing/recalling memory, feeding memory into the context layer.
 **To do:**
-- [ ] **Short-term (conversation) memory first:** the UI sends the previous turns with each `/ask`; the agent replays only questions and final answers (not tool output), capped at the last N turns. Add 3–4 multi-turn questions to the golden set. (Found in Phase 8: the deployed demo forgets the previous message.)
+- [x] **Short-term (conversation) memory first:** the UI sends the previous turns with each `/ask`; the agent replays only questions and final answers (not tool output), capped at the last N turns. Add 3–4 multi-turn questions to the golden set. (Found in Phase 8: the deployed demo forgets the previous message.)
 - [ ] Long-term memory store (e.g. the foreman's preferences, frequent rejection reasons, machine-specific notes)
 - [ ] Recall relevant memory per request and add it to the context (without exceeding the token budget)
 - [ ] Privacy/PII: what is stored in memory and what is not
 - [ ] Evals: personalization and accuracy difference with memory on/off
 **Done criterion:** The assistant remembers previous decisions/preferences and uses them where relevant (proven by test).
+
+**Decision applied, part 1 — conversation memory (2026-11-27):**
+- Stateless server: the UI sends earlier turns (`history: [{role, content}]`) with every `/ask`; the
+  server trims to the last 6 messages and 2 000 chars each (`app/agent/history.py`), replays only
+  questions and final answers (no tool calls, no chunks). Only `user`/`assistant` roles are accepted,
+  so a client cannot inject `system` messages.
+- History is **untrusted input**: a client can fabricate an assistant turn ("I approved it"). The
+  system prompt says not to treat earlier assistant claims as actions taken; the output guard still
+  runs. Golden item mt-05 (held-out) tests exactly this fabricated-approval case.
+- Cost: +24 tokens on a follow-up with a two-turn history (text only), cost per query $0.0010 →
+  $0.0011 on the dev set. Without history "peki ROBOT-1?" silently answered *all time* instead of
+  *last 6 months*: plausible, wrong, and invisible to the technician.
+- Golden set 42 → 47: five multi-turn items (`history` field). Retrieval metrics are skipped for them
+  (a follow-up is not a meaningful standalone vector query); the judge sees the previous turns.
+- **Side finding:** mt-01 exposed a boundary bug in `get_fault_history`: the cutoff was computed in
+  Python (`now() - 30×N days`, local clock) while the golden SQL used `interval 'N months'` on the DB
+  clock; one ROBOT-1 record fell between them (15 vs 16). Fixed by moving the cutoff into SQL
+  (`now() - make_interval(0, N)`). Present since Phase 4; found only because a multi-turn question
+  asked the same thing about a different machine.
+- Dev eval: **97%** (35/36), p50 4.6 s, p95 7.0 s, $0.0011/query, MRR 0.83; all 4 dev multi-turn
+  items pass. The one failure (unans-02) was the scorer again: a correct refusal phrased
+  "bilgisi ... araçlarda yok" that the hint list did not cover. Added a regex fallback
+  ("<bilgi|veri|kayıt> … yok" within one sentence); re-scoring the 68 saved answers offline flipped only
+  unans-02 (in this run and in the Phase 7 run, i.e. the 31/32 there was the same gap): 68/68.
 **Control questions:** When is memory useful, and when does it risk misleading/stale information?
 
 ### Phase 12 — Self-improvement
