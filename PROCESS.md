@@ -264,7 +264,7 @@ Dev 91% (noise ±5%, security 5/5); held-out run for the first time: 80%.
 ### Phase 9 — Delivery and story (2 days)
 **To do:**
 - [x] README: problem, architecture diagram, eval results (phase-by-phase improvement table), security design, cost
-- [ ] 2–3 minute demo video — script ready in `docs/STORY.md`, recording is manual
+- [x] ~~2–3 minute demo video~~ — cancelled (2026-11-27); the script stays in `docs/STORY.md` for live demos
 - [x] `HANDOVER.md`: how someone else operates this system (runbook)
 - [x] LinkedIn post — draft (TR + EN) in `docs/STORY.md`
 - [x] Interview story: "How I solved a maintenance team's problem in a measurable way" — STAR version in `docs/STORY.md`
@@ -403,6 +403,15 @@ per-technician aggregation is deliberately unsupported. Gap recorded: no retenti
 | 11 Memory (v2) | ✅ | 2026-11-27 | 2026-11-27 | Conversation memory: UI replays last 6 turns, server trims, untrusted (fabricated-approval item held out). No long-term store: `list_recent_rejections` tool over foreman decisions instead, consulted before drafting. Found+fixed a since_months boundary bug and a scorer gap. Golden 49. Dev 100% (38/38), p95 9.5 s |
 | 12 Self-improvement (v2) | ⏭️ skipped | 2026-11-27 | 2026-11-27 | Deliberately not built: dev at 100%, no production signal to learn from; ingredients (rejections tool, --runs, held-out guard, judge) are in place if real usage arrives |
 | 13 Autonomy + Responsible AI (v2) | ✅ | 2026-11-27 | 2026-11-27 | RESPONSIBLE_AI.md: L0–L4 levels, per-operation table with enforcing mechanism, conditions to raise a level, assessment (safety, injection, privacy, fairness, transparency, accountability, limits). tests/test_autonomy.py locks code to the table |
+
+## 8.1 Accepted risks (owner decisions, 2026-11-27)
+
+- **Cold start stays:** `min-instances=0` on Cloud Run; 13–17 s on the first request after idle is
+  accepted for a demo rather than paying ~$15/month.
+- **Keys not rotated:** the OpenRouter key that appeared in a project-private Cloud Run log and the
+  Langfuse keys that were pasted in a chat are kept as they are; the account is a personal demo
+  with a small balance. Rotation steps are in HANDOVER.md §3 if that changes.
+- **Demo video cancelled**; live demos use the script in `docs/STORY.md`.
 
 ## 9. Open questions
 
