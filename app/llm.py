@@ -13,6 +13,7 @@ from openai import NOT_GIVEN, OpenAI
 from pydantic import BaseModel
 
 from app.config import get_settings
+from app.tracing import traced, update_generation
 
 logger = logging.getLogger("foremanai.llm")
 
@@ -49,14 +50,18 @@ def _extract_cost(usage: object) -> float | None:
     return extra.get("cost")
 
 
-def chat(messages: list[dict[str, str]], *, temperature: float = 0.2) -> LLMResult:
+@traced("llm.chat", as_type="generation")
+def chat(
+    messages: list[dict[str, str]], *, temperature: float = 0.2, model: str | None = None
+) -> LLMResult:
     """Send chat messages to the configured model and return the reply with usage.
 
     messages: list of {"role": "system"|"user"|"assistant", "content": "..."}.
-    The model name comes from settings (LLM_MODEL) and is never hard-coded.
+    model: optional override (e.g. a separate judge model); defaults to LLM_MODEL.
+    The model name comes from settings and is never hard-coded.
     """
     response = _client.chat.completions.create(
-        model=_settings.llm_model,
+        model=model or _settings.llm_model,
         messages=messages,
         temperature=temperature,
         extra_body={"usage": {"include": True}},  # ask OpenRouter to also report cost
@@ -69,15 +74,31 @@ def chat(messages: list[dict[str, str]], *, temperature: float = 0.2) -> LLMResu
         total_tokens=usage.total_tokens if usage else 0,
         cost_usd=_extract_cost(usage),
     )
-    _log_usage(result.prompt_tokens, result.completion_tokens, result.total_tokens, result.cost_usd)
+    _log_usage(
+        result.prompt_tokens,
+        result.completion_tokens,
+        result.total_tokens,
+        result.cost_usd,
+        model=model or _settings.llm_model,
+    )
+    update_generation(
+        model=model or _settings.llm_model,
+        prompt_tokens=result.prompt_tokens,
+        completion_tokens=result.completion_tokens,
+        total_tokens=result.total_tokens,
+        cost_usd=result.cost_usd,
+        output=result.content,
+    )
     return result
 
 
-def _log_usage(prompt: int, completion: int, total: int, cost: float | None) -> None:
+def _log_usage(
+    prompt: int, completion: int, total: int, cost: float | None, model: str | None = None
+) -> None:
     """Log token counts and cost for one LLM call."""
     logger.info(
         "llm call model=%s tokens=%d/%d/%d cost=%s",
-        _settings.llm_model,
+        model or _settings.llm_model,
         prompt,
         completion,
         total,
@@ -85,6 +106,7 @@ def _log_usage(prompt: int, completion: int, total: int, cost: float | None) -> 
     )
 
 
+@traced("llm.complete", as_type="generation")
 def complete(
     messages: list[dict[str, Any]],
     *,
@@ -111,4 +133,14 @@ def complete(
         usage.total_tokens if usage else 0,
         cost,
     )
-    return response.choices[0].message, (usage.total_tokens if usage else 0), cost
+    message = response.choices[0].message
+    update_generation(
+        model=_settings.llm_model,
+        prompt_tokens=usage.prompt_tokens if usage else 0,
+        completion_tokens=usage.completion_tokens if usage else 0,
+        total_tokens=usage.total_tokens if usage else 0,
+        cost_usd=cost,
+        # Tool calls are the interesting output when there is no text yet.
+        output=message.content or [call.function.model_dump() for call in message.tool_calls or []],
+    )
+    return message, (usage.total_tokens if usage else 0), cost

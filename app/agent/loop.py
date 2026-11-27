@@ -15,6 +15,7 @@ from app.agent.tools import TOOL_FUNCTIONS, TOOL_SCHEMAS
 from app.guard import check_answer
 from app.llm import complete
 from app.tools.work_orders import WorkOrderDraft
+from app.tracing import current_trace_id, traced, update_span
 
 AGENT_SYSTEM_PROMPT = """Sen bir metal işleme fabrikasının bakım asistanısın. Teknisyenlere \
 makine arızalarının teşhisinde yardımcı olursun. Araçların var; soruya göre doğru aracı seç:
@@ -50,6 +51,7 @@ class AgentResult(BaseModel):
     tool_calls: list[str] = []
     drafts: list[WorkOrderDraft] = []  # work-order drafts proposed this run (never saved)
     guard_flags: list[str] = []  # output-guard hits (empty = answer passed clean)
+    trace_id: str | None = None  # Langfuse trace id, when tracing is enabled
 
 
 def _finalize(
@@ -64,6 +66,15 @@ def _finalize(
     Every answer leaves through here, so the guard cannot be bypassed by a code path.
     """
     guarded = check_answer(raw_answer, drafts)
+    update_span(
+        output=guarded.answer,
+        metadata={
+            "tool_calls": called,
+            "total_tokens": total_tokens,
+            "cost_usd": total_cost,
+            "guard_flags": guarded.flags,
+        },
+    )
     return AgentResult(
         answer=guarded.answer,
         total_tokens=total_tokens,
@@ -71,6 +82,7 @@ def _finalize(
         tool_calls=called,
         drafts=drafts,
         guard_flags=guarded.flags,
+        trace_id=current_trace_id(),
     )
 
 
@@ -82,8 +94,10 @@ def _collect_draft(
         drafts.append(WorkOrderDraft.model_validate(result))
 
 
+@traced("tool", as_type="tool")
 def _run_tool(name: str, raw_arguments: str) -> dict[str, Any] | list[Any]:
     """Execute one tool by name with JSON-string arguments, returning its result."""
+    update_span(name=name)  # show the real tool name in the trace instead of "tool"
     if name not in TOOL_FUNCTIONS:
         return {"error": f"unknown tool: {name}"}
     try:
@@ -93,6 +107,7 @@ def _run_tool(name: str, raw_arguments: str) -> dict[str, Any] | list[Any]:
         return {"error": str(exc)}
 
 
+@traced("ask", as_type="agent")
 def run_agent(question: str, max_steps: int = 6) -> AgentResult:
     """Run the tool-calling loop until the model gives a final answer or steps run out."""
     messages: list[dict[str, Any]] = [

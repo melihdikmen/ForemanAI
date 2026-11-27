@@ -8,6 +8,7 @@ from sqlalchemy import select
 from app.db import ReadOnlySessionLocal
 from app.embedding import embed_query
 from app.models import ManualChunk
+from app.tracing import traced
 
 
 class RetrievedChunk(BaseModel):
@@ -26,6 +27,7 @@ class RetrievedChunk(BaseModel):
         return f"[{self.source} · {self.section}]"
 
 
+@traced("vector_search", as_type="retriever")
 def search(query: str, k: int = 5, machine_code: str | None = None) -> list[RetrievedChunk]:
     """Return the top-k manual chunks most similar to the query.
 

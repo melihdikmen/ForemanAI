@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     openrouter_api_key: str
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     llm_model: str
+    # Separate model for LLM-as-judge evals; None = same as llm_model (self-preference bias).
+    judge_model: str | None = None
+
+    # Langfuse tracing (phase 7). Both keys empty = tracing disabled.
+    langfuse_public_key: str | None = None
+    langfuse_secret_key: str | None = None
+    langfuse_host: str = "https://cloud.langfuse.com"
 
     # Embedding model used for RAG (phase 3).
     embedding_model: str = "intfloat/multilingual-e5-base"

@@ -3,14 +3,28 @@
 Run locally:  uv run uvicorn app.api.main:app --reload
 """
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 
 from app.agent.loop import run_agent
 from app.api.work_orders import router as work_orders_router
 from app.tools.work_orders import WorkOrderDraft
+from app.tracing import flush_traces
 
-app = FastAPI(title="Fabrika Bakım Asistanı", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Startup/shutdown hook: flush buffered Langfuse traces when the server stops."""
+    yield  # the app serves requests here
+    flush_traces()
+
+
+app = FastAPI(title="Fabrika Bakım Asistanı", version="0.1.0", lifespan=lifespan)
+
+
 app.include_router(work_orders_router)
 
 
@@ -33,6 +47,8 @@ class AskResponse(BaseModel):
     # Output-guard hits (e.g. "skip_loto"). Non-empty means a safety warning was
     # appended to the answer; the UI can also show a banner.
     guard_flags: list[str] = []
+    # Langfuse trace id for this request (None when tracing is disabled).
+    trace_id: str | None = None
 
 
 @app.get("/health")
@@ -52,4 +68,5 @@ def ask(req: AskRequest) -> AskResponse:
         tool_calls=result.tool_calls,
         drafts=result.drafts,
         guard_flags=result.guard_flags,
+        trace_id=result.trace_id,
     )
