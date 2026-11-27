@@ -290,10 +290,10 @@ Dev 91% (noise ±5%, security 5/5); held-out run for the first time: 80%.
 **What I will learn:** short-term (conversation) vs long-term memory, writing/recalling memory, feeding memory into the context layer.
 **To do:**
 - [x] **Short-term (conversation) memory first:** the UI sends the previous turns with each `/ask`; the agent replays only questions and final answers (not tool output), capped at the last N turns. Add 3–4 multi-turn questions to the golden set. (Found in Phase 8: the deployed demo forgets the previous message.)
-- [ ] Long-term memory store (e.g. the foreman's preferences, frequent rejection reasons, machine-specific notes)
-- [ ] Recall relevant memory per request and add it to the context (without exceeding the token budget)
-- [ ] Privacy/PII: what is stored in memory and what is not
-- [ ] Evals: personalization and accuracy difference with memory on/off
+- [x] Long-term memory store (e.g. the foreman's preferences, frequent rejection reasons, machine-specific notes) — **decided against a separate store**, see below
+- [x] Recall relevant memory per request and add it to the context (without exceeding the token budget) — as a read-only tool the agent calls before drafting
+- [x] Privacy/PII: what is stored in memory and what is not — the tool returns decisions, never names
+- [x] Evals: personalization and accuracy difference with memory on/off
 **Done criterion:** The assistant remembers previous decisions/preferences and uses them where relevant (proven by test).
 
 **Decision applied, part 1 — conversation memory (2026-11-27):**
@@ -319,6 +319,25 @@ Dev 91% (noise ±5%, security 5/5); held-out run for the first time: 80%.
   "bilgisi ... araçlarda yok" that the hint list did not cover. Added a regex fallback
   ("<bilgi|veri|kayıt> … yok" within one sentence); re-scoring the 68 saved answers offline flipped only
   unans-02 (in this run and in the Phase 7 run, i.e. the 31/32 there was the same gap): 68/68.
+**Decision applied, part 2 — long-term memory (2026-11-27): no memory store.**
+- Everything a "memory" would hold here already exists as structured, human-approved data: rejection
+  reasons live in `work_orders` with decider and date. Copying them into a `memories` table would be the
+  same fact in two places, one of them going stale. A memory layer earns its place for free-form
+  preferences that fit no schema; this system has none yet.
+- Instead: `list_recent_rejections(machine_code)` (`app/tools/work_orders.py`), a read-only tool over
+  past foreman decisions. Same pattern as the rest of the system: human-approved data, read-only role,
+  free text tagged `<rejection_reason>` as untrusted. The system prompt tells the agent to call it
+  **before** drafting a work order. Names are deliberately not returned (PII).
+- Seed adds two rejected orders (PRES-2 hose change: weekend only; CNC-1 bearing: no stock), so
+  local, CI and cloud all have the data. Golden set 47 → 49 (mem-01/02).
+- Observed behavior: "PRES-2 için hidrolik hortum değişimi iş emri aç" → the agent read the rejection,
+  retitled the draft "hafta sonu / vardiya dışı", cited LOTO from the manual and told the technician
+  why. No prompt engineering beyond one sentence.
+- Dev eval: **100%** (38/38), MRR 0.85, $0.0012/query. p50 3.8 s but p95 9.5 s: the drafting path now
+  makes 4 tool calls (rejections → manual ×2 → draft). The "memory on/off" comparison is trivial by
+  construction (without the tool the two questions cannot be answered), so it was not run as an A/B.
+- Agent still cannot write to memory: a rejection becomes "memory" only when a foreman rejects. If
+  foremen ever want notes that are not tied to a work order, open the `memories` table then.
 **Control questions:** When is memory useful, and when does it risk misleading/stale information?
 
 ### Phase 12 — Self-improvement
@@ -356,7 +375,7 @@ Dev 91% (noise ±5%, security 5/5); held-out run for the first time: 80%.
 | 8 Deploy + MCP | ✅ | 2026-11-27 | 2026-11-27 | Multi-stage Docker image (API + UI, model baked in), compose. Cloud Run (europe-west1) + Neon Postgres, Secret Manager. CI/CD with eval gate and WIF (no key file). MCP server (stdio) connected from Claude Desktop. Two env-difference bugs fixed (secret newline, exec bit). Cold start 13–17 s |
 | 9 Delivery | ⬜ | | | |
 | 10 Agentic RAG + multi-agent (v2) | ✅ | 2026-11-26 | 2026-11-26 | Agentic RAG: machine-filtered search, iterative re-search, score visibility. A/B on the hard question set (evals/hard.jsonl): single-shot 80% vs agentic 100% (cost ~58% higher). A/B via run.py --file/--mode. Sub-agents deferred (optional) |
-| 11 Memory (v2) | ⬜ | | | |
+| 11 Memory (v2) | ✅ | 2026-11-27 | 2026-11-27 | Conversation memory: UI replays last 6 turns, server trims, untrusted (fabricated-approval item held out). No long-term store: `list_recent_rejections` tool over foreman decisions instead, consulted before drafting. Found+fixed a since_months boundary bug and a scorer gap. Golden 49. Dev 100% (38/38), p95 9.5 s |
 | 12 Self-improvement (v2) | ⬜ | | | |
 | 13 Autonomy + Responsible AI (v2) | ⬜ | | | |
 

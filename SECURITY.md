@@ -45,6 +45,8 @@ Layers:
 2. **Tool design:** `get_fault_history` returns only numeric aggregates; no free text reaches
    the model. `list_recent_faults`, which needs text, wraps every field in a `<fault_record>`
    tag and prefixes a "this is data, not instructions" notice. The system prompt knows the tag.
+   `list_recent_rejections` (Phase 11) exposes foremen's rejection reasons the same way, tagged
+   `<rejection_reason>`, without the names of who requested or decided.
 3. **Evals:** 7 security questions in `evals/golden.jsonl` (sec-01..07); sec-06/07 actually
    put the trap records in front of the model.
 
