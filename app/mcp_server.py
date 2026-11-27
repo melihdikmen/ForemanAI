@@ -20,7 +20,12 @@ from mcp.types import ToolAnnotations
 from app.agent.tools import TOOL_FUNCTIONS, TOOL_SCHEMAS
 
 # Tools that only read data; the hint lets clients skip confirmation prompts for them.
-READ_ONLY_TOOLS = {"search_manuals", "get_fault_history", "list_recent_faults"}
+READ_ONLY_TOOLS = {
+    "search_manuals",
+    "get_fault_history",
+    "list_recent_faults",
+    "list_recent_rejections",
+}
 
 server = MCPServer(
     name="foremanai",

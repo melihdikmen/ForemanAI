@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import delete, func, select
 
 from app.db import SessionLocal
-from app.models import FaultRecord, Machine, Severity, WorkOrder
+from app.models import FaultRecord, Machine, Priority, Severity, WorkOrder, WorkOrderStatus
 
 # Deterministic output across runs (same machines/alarms/severities every time).
 random.seed(42)
@@ -324,6 +324,51 @@ def build_trap_records(machines: list[Machine]) -> list[FaultRecord]:
     ]
 
 
+# Past foreman decisions the assistant should take into account (phase 11). Rejection
+# reasons are the "long-term memory" of this system; they live in work_orders, not in
+# a separate store, so the seed creates a couple of realistic rejected orders.
+REJECTED_WORK_ORDERS: list[dict[str, str]] = [
+    {
+        "machine_code": "PRES-2",
+        "title": "Hidrolik hortum değişimi",
+        "description": "Ana silindir besleme hortumunda sızıntı.",
+        "proposed_actions": "Hortumu değiştir, basınç testi yap.",
+        "rejection_reason": "PRES-2'de hortum değişimi yalnızca vardiya dışı (hafta sonu) "
+        "planlanır; üretim duruşu kabul edilmedi. Hafta sonu planına alınarak yeniden gönderin.",
+    },
+    {
+        "machine_code": "CNC-1",
+        "title": "Fener mili rulman değişimi",
+        "description": "A-203 titreşim alarmı tekrar ediyor.",
+        "proposed_actions": "Rulman setini değiştir.",
+        "rejection_reason": "Rulman seti stokta yok; önce satın alma talebi açılsın, "
+        "parça gelince iş emri yeniden gönderilsin.",
+    },
+]
+
+
+def build_rejected_work_orders(machines: list[Machine]) -> list[WorkOrder]:
+    """Create the seeded rejected work orders (decided by a foreman two weeks ago)."""
+    by_code = {machine.code: machine for machine in machines}
+    decided_at = datetime.now() - timedelta(days=14)
+    return [
+        WorkOrder(
+            machine_id=by_code[data["machine_code"]].id,
+            created_at=decided_at - timedelta(days=1),
+            created_by="teknisyen.demo",
+            status=WorkOrderStatus.REJECTED,
+            title=data["title"],
+            description=data["description"],
+            proposed_actions=data["proposed_actions"],
+            priority=Priority.MEDIUM,
+            reviewed_by="ustabasi.demo",
+            reviewed_at=decided_at,
+            rejection_reason=data["rejection_reason"],
+        )
+        for data in REJECTED_WORK_ORDERS
+    ]
+
+
 def seed(record_count: int = 200) -> None:
     """Reset the tables and insert the machines plus `record_count` fault records."""
     with SessionLocal() as session:
@@ -339,6 +384,7 @@ def seed(record_count: int = 200) -> None:
 
         session.add_all(build_fault_records(machines, record_count))
         session.add_all(build_trap_records(machines))
+        session.add_all(build_rejected_work_orders(machines))
         session.commit()
 
         machine_total = session.scalar(select(func.count()).select_from(Machine))

@@ -147,8 +147,12 @@ def list_recent_faults(machine_code: str, limit: int = 5) -> dict[str, Any]:
     return result
 
 
-def _tag_untrusted(text: str) -> str:
-    """Wrap technician-written text in a data tag (no-op when tagging is disabled)."""
+def _tag_untrusted(text: str, tag: str = "fault_record") -> str:
+    """Wrap human-written free text in a data tag (no-op when tagging is disabled).
+
+    tag names the kind of record so the prompt can refer to it ("fault_record",
+    "rejection_reason"); the rule for the model is the same for all of them.
+    """
     if not UNTRUSTED_TEXT_TAGGING:
         return text
-    return f"<fault_record>{text}</fault_record>"
+    return f"<{tag}>{text}</{tag}>"
