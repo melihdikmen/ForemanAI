@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from app.agent.history import ChatTurn
 from app.agent.loop import run_agent
 from app.api.work_orders import router as work_orders_router
 from app.tools.work_orders import WorkOrderDraft
@@ -34,6 +35,9 @@ class AskRequest(BaseModel):
     """Request body for POST /ask."""
 
     question: str
+    # Previous turns of this chat (oldest first). The server keeps only the last few;
+    # see app/agent/history.py. Empty = a fresh conversation.
+    history: list[ChatTurn] = []
 
 
 class AskResponse(BaseModel):
@@ -62,7 +66,7 @@ def health() -> dict[str, str]:
 @app.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest) -> AskResponse:
     """Answer a maintenance question using the tool-calling agent."""
-    result = run_agent(req.question)
+    result = run_agent(req.question, history=req.history)
     return AskResponse(
         answer=result.answer,
         total_tokens=result.total_tokens,

@@ -37,6 +37,15 @@ export interface WorkOrder extends WorkOrderDraft {
   rejection_reason: string | null
 }
 
+/** One earlier chat message, replayed to the server so follow-up questions resolve. */
+export interface ChatTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+/** How many previous messages to send; the server trims to the same number anyway. */
+export const HISTORY_MESSAGES = 6
+
 /** Response of POST /ask. */
 export interface AskResponse {
   answer: string
@@ -74,8 +83,11 @@ async function request<T>(user: User, path: string, init: RequestInit = {}): Pro
 }
 
 export const api = {
-  ask: (user: User, question: string) =>
-    request<AskResponse>(user, '/ask', { method: 'POST', body: JSON.stringify({ question }) }),
+  ask: (user: User, question: string, history: ChatTurn[] = []) =>
+    request<AskResponse>(user, '/ask', {
+      method: 'POST',
+      body: JSON.stringify({ question, history: history.slice(-HISTORY_MESSAGES) }),
+    }),
 
   submitDraft: (user: User, draft: WorkOrderDraft) =>
     request<WorkOrder>(user, '/work-orders', { method: 'POST', body: JSON.stringify(draft) }),

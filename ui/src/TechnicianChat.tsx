@@ -12,7 +12,7 @@ import {
   Send,
   Sparkles,
 } from 'lucide-react'
-import { api, type User, type WorkOrder, type WorkOrderDraft, type WorkOrderStatus } from './api'
+import { api, type ChatTurn, type User, type WorkOrder, type WorkOrderDraft, type WorkOrderStatus } from './api'
 import type { Notify } from './hooks/useToasts'
 import { relativeTime, summarizeTools } from './lib/format'
 import { Avatar, EmptyState, MachineChip, Markdown, PriorityBadge, StatusBadge } from './components/ui'
@@ -26,6 +26,19 @@ interface ChatMessage {
   drafts: WorkOrderDraft[]
   guardFlags: string[] // output-guard hits; non-empty shows a safety banner
   failed?: boolean // technician turn whose answer never arrived (server down, crash...)
+}
+
+/**
+ * Conversation memory sent with each question: earlier turns as plain text, oldest first.
+ * Failed technician turns (no answer) and the question being asked now are left out.
+ */
+function toHistory(messages: ChatMessage[], currentQuestionId: number): ChatTurn[] {
+  return messages
+    .filter((message) => !message.failed && message.id !== currentQuestionId)
+    .map((message) => ({
+      role: message.author === 'technician' ? 'user' : 'assistant',
+      content: message.text,
+    }))
 }
 
 /** Starter questions shown on an empty chat (real machine and alarm codes from the seed). */
@@ -110,7 +123,9 @@ export function TechnicianChat({ user, notify }: Props) {
         : prev.map((message) => (message.id === questionId ? { ...message, failed: false } : message)),
     )
     try {
-      const response = await api.ask(user, trimmed)
+      // `messages` here is the state before this question was appended (React batches the
+      // update above), so it is exactly the earlier conversation.
+      const response = await api.ask(user, trimmed, toHistory(messages, questionId))
       setMessages((prev) => [
         ...prev,
         {

@@ -57,9 +57,19 @@ class JudgeVerdict(BaseModel):
     reason: str
 
 
+def _history_block(record: dict) -> str:
+    """Earlier conversation turns of a multi-turn item, or empty for single-turn items."""
+    turns = record.get("history") or []
+    if not turns:
+        return ""
+    lines = "\n".join(f"- {turn['role']}: {turn['content']}" for turn in turns)
+    return f"PREVIOUS TURNS (context the assistant also saw):\n{lines}\n\n"
+
+
 def build_judge_messages(record: dict) -> list[dict[str, str]]:
     """Turn one saved answer record into the judge's chat messages."""
     user_content = (
+        f"{_history_block(record)}"
         f"QUESTION:\n{record['question']}\n\n"
         f"CATEGORY: {record['category']}\n"
         f"EXPECTED (JSON):\n{json.dumps(record['expected'], ensure_ascii=False)}\n\n"
