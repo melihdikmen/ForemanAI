@@ -44,6 +44,8 @@ export interface AskResponse {
   cost_usd: number | null
   tool_calls: string[]
   drafts: WorkOrderDraft[]
+  /** Output-guard hits (e.g. "skip_loto"); non-empty means a safety warning was appended. */
+  guard_flags: string[]
 }
 
 /** Fetch JSON from the API as `user`; throws an Error carrying FastAPI's `detail`. */

@@ -30,6 +30,9 @@ class AskResponse(BaseModel):
     # Work-order drafts the agent proposed; NOT saved. The UI shows them with a
     # "send for approval" button that POSTs a draft to /work-orders.
     drafts: list[WorkOrderDraft] = []
+    # Output-guard hits (e.g. "skip_loto"). Non-empty means a safety warning was
+    # appended to the answer; the UI can also show a banner.
+    guard_flags: list[str] = []
 
 
 @app.get("/health")
@@ -48,4 +51,5 @@ def ask(req: AskRequest) -> AskResponse:
         cost_usd=result.cost_usd,
         tool_calls=result.tool_calls,
         drafts=result.drafts,
+        guard_flags=result.guard_flags,
     )

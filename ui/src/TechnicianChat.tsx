@@ -24,6 +24,7 @@ interface ChatMessage {
   text: string
   toolCalls: string[]
   drafts: WorkOrderDraft[]
+  guardFlags: string[] // output-guard hits; non-empty shows a safety banner
   failed?: boolean // technician turn whose answer never arrived (server down, crash...)
 }
 
@@ -105,7 +106,7 @@ export function TechnicianChat({ user, notify }: Props) {
     const questionId = retryMessageId ?? Date.now()
     setMessages((prev) =>
       retryMessageId === undefined
-        ? [...prev, { id: questionId, author: 'technician', text: trimmed, toolCalls: [], drafts: [] }]
+        ? [...prev, { id: questionId, author: 'technician', text: trimmed, toolCalls: [], drafts: [], guardFlags: [] }]
         : prev.map((message) => (message.id === questionId ? { ...message, failed: false } : message)),
     )
     try {
@@ -118,6 +119,7 @@ export function TechnicianChat({ user, notify }: Props) {
           text: response.answer,
           toolCalls: response.tool_calls,
           drafts: response.drafts,
+          guardFlags: response.guard_flags,
         },
       ])
     } catch (err) {
@@ -199,6 +201,12 @@ export function TechnicianChat({ user, notify }: Props) {
                             <Sparkles className="size-3" /> {label}
                           </span>
                         ))}
+                      </div>
+                    )}
+                    {message.guardFlags.length > 0 && (
+                      <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                        Güvenlik denetimi bu cevabı işaretledi ({message.guardFlags.join(', ')}). Cevabın
+                        sonundaki uyarıyı okuyun; güvenlik adımlarını atlamayın.
                       </div>
                     )}
                     <div className="rounded-2xl rounded-tl-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
