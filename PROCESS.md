@@ -189,13 +189,36 @@ daraltıldı. Dev %91 (gürültü ±%5, güvenlik 5/5); held-out ilk kez koşuld
 ### Faz 7 — Gözlemlenebilirlik ve otomatik eval (3 gün)
 **Öğreneceklerim:** tracing, LLM-as-judge, maliyet/gecikme ölçümü, CI'da eval, precision/recall ve maliyet matrisi.
 **Yapılacaklar:**
-- [ ] Langfuse ile her isteğin trace'i (retrieval, tool, model, token)
-- [ ] LLM-as-judge + 10 soruda elle karşılaştırma (judge ne kadar güvenilir?)
-- [ ] Retrieval için **precision@k ve recall@k** birlikte raporla; MRR
-- [ ] **Maliyet matrisi:** arıza önceliğine (kritik/normal/düşük) göre hataları ağırlıklandır; kritik kaçırma (false negative) ağır cezalı. Skorları hem ham hem maliyet-ağırlıklı ver.
-- [ ] p95 gecikme ve sorgu başı maliyet raporu
-- [ ] GitHub Actions'ta eval: skor eşiğin altına düşerse PR kırmızı
+- [x] Langfuse ile her isteğin trace'i (retrieval, tool, model, token)
+- [x] LLM-as-judge + 10 soruda elle karşılaştırma (judge ne kadar güvenilir?)
+- [x] Retrieval için **precision@k ve recall@k** birlikte raporla; MRR
+- [x] **Maliyet matrisi:** arıza önceliğine (kritik/normal/düşük) göre hataları ağırlıklandır; kritik kaçırma (false negative) ağır cezalı. Skorları hem ham hem maliyet-ağırlıklı ver.
+- [x] p95 gecikme ve sorgu başı maliyet raporu
+- [x] GitHub Actions'ta eval: skor eşiğin altına düşerse PR kırmızı
 **Bitti kriteri:** Tek komutla eval raporu (precision/recall + maliyet-ağırlıklı); CI'da çalışıyor.
+
+**Uygulanan karar (2026-11-27):**
+- `run.py`: MRR, p50/p95 gecikme, sorgu başı maliyet, `--runs N` (koşu ortalaması + soru başına
+  kararlılık ⚠️ 2/3), `--min-accuracy` (CI kapısı), cevap dökümü `<tag>.answers.jsonl`.
+- **Gürültü ölçüldü:** 3 koşu × 32 soru → %93; hiçbir soru 3'te 3 düşmedi, 4 soru "flaky".
+- **LLM-as-judge** (`evals/judge.py`, judge = Sonnet 5.5, sistem = Haiku 5.5; aynı modeli kullanmamak
+  için ayrı `JUDGE_MODEL`). 32 cevapta keyword ile uyum %91; 3 anlaşmazlığın hepsinde judge haklı.
+  10 cevap elle etiketlendi: judge↔insan 10/10, keyword↔insan 7/10. Küçük ve kolay örneklem; judge'ın
+  cömertliği gerçekten yanlış cevaplarda sınanmadı (elimizde az var).
+- **Judge'ın bulduğu ölçer hataları** (hepsi düzeltildi, kayıtlı 96+32 cevap yeniden puanlanınca
+  tümü geçti): (1) kelime kırılganlığı → `must_include` alternatifleri `|` ile; (2) reddetme kalıpları
+  eksik ("bende yok", "kaynaklarda yok"); (3) **Türkçe büyük I**: `casefold()` "Işık"→"işık" yapıyor,
+  "ışık" ile eşleşmiyordu → Türkçe'ye özel dönüşüm. Yani Faz 6'daki "flaky" sonuçlar modelden değil
+  ölçerden geliyordu.
+- **İş bölümü:** keyword ölçer CI'da (ucuz, deterministik); judge periyodik, ölçerin hatalarını bulmak için
+  (pahalı, nondeterministik, CI'da değil).
+- **Langfuse** (`app/tracing.py`): anahtar yoksa no-op. Trace ağacı: ask(agent) → llm.complete(generation,
+  model+token+maliyet) → tool(span, gerçek araç adı) → vector_search(retriever). `/ask` cevabında `trace_id`.
+- **CI** (`.github/workflows/ci.yml`): pgvector servis → init SQL → alembic → seed → index → ruff → pytest →
+  `run.py --min-accuracy 0.85` (gürültü payı). Repo henüz GitHub'da değil; push + `OPENROUTER_API_KEY`
+  secret gerekiyor.
+- Faz 7 sonucu (dev, tek koşu): **%97** (31/32; kalan 1 de ölçer, düzeltme sonrası 32/32). p50 4.7 sn,
+  p95 7.0 sn, sorgu başı $0.0010, MRR 0.83.
 **Kontrol soruları:** LLM-as-judge'a ne zaman güvenmemeliyiz? Recall yüksek ama precision düşükse ne olur? Hangi hata en pahalı?
 
 ### Faz 8 — Deploy ve MCP (4–5 gün)
@@ -275,7 +298,7 @@ daraltıldı. Dev %91 (gürültü ±%5, güvenlik 5/5); held-out ilk kez koşuld
 | 4 Agent | ✅ | 2026-11-26 | 2026-11-26 | Ham tool-calling agent (LangGraph değil): search_manuals, get_fault_history (salt okunur), draft_work_order (taslak). Dev doğruluk %77→%93, sql 0/4→4/4. Eval ölçeri sağlamlaştırıldı (refusal+sayı normalizasyonu) |
 | 5 HITL | ✅ | 2026-11-26 | 2026-11-26 | DB state machine (LangGraph yerine): taslak → teknisyen gönderir (PENDING) → ustabaşı onay/ret (rol kontrolü, satır kilidi, 409, ret gerekçesi). `/ask` → `drafts`. React+Tailwind UI (sohbet + onay kuyruğu). 28 test; dev eval %93 (regresyon yok) |
 | 6 Güvenlik | ✅ | 2026-11-27 | 2026-11-27 | Read-only Postgres rolü (test ile kanıtlı), `list_recent_faults` + `<fault_record>` etiketi, regex çıktı guard'ı + UI uyarısı, SECURITY.md. Golden 42 soru (7 güvenlik). Dev %91 (güvenlik 5/5), held-out ilk koşu %80 (sec-02, unans-04 düştü) |
-| 7 Gözlemlenebilirlik | ⬜ | | | |
+| 7 Gözlemlenebilirlik | ✅ | 2026-11-27 | 2026-11-27 | run.py: MRR, p50/p95, sorgu başı maliyet, `--runs` (3 koşu: %93, 4 flaky), `--min-accuracy`. LLM-as-judge (Sonnet) 3 ölçer hatası buldu (Türkçe I, kelime kırılganlığı, reddetme kalıpları); 10 elle etiket: judge 10/10, keyword 7/10. Langfuse trace (agent→generation→tool→retriever). GitHub Actions CI (push bekliyor). Dev %97 |
 | 8 Deploy + MCP | ⬜ | | | |
 | 9 Teslim | ⬜ | | | |
 | 10 Agentic RAG + çoklu agent (v2) | ✅ | 2026-11-26 | 2026-11-26 | Agentic RAG: makine-filtreli arama, iteratif tekrar-arama, skor görünürlüğü. Zor soru setinde (evals/hard.jsonl) A/B: tek-seferlik %80 vs agentic %100 (maliyet ~%58 fazla). run.py --file/--mode ile A/B. Sub-agent ertelendi (opsiyonel) |

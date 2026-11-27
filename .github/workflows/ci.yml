@@ -1,0 +1,82 @@
+# CI: lint -> tests -> eval gate. The eval needs a real LLM (OpenRouter) and a
+# Postgres with pgvector, so it costs a few cents per run; it only runs on
+# pushes/PRs to the main branches.
+name: ci
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+env:
+  # Non-secret config the app reads through app/config.py (no .env file in CI).
+  POSTGRES_USER: foreman
+  POSTGRES_PASSWORD: ci-only
+  POSTGRES_DB: foremanai
+  DATABASE_URL: postgresql+psycopg://foreman:ci-only@localhost:5432/foremanai
+  DATABASE_URL_READONLY: postgresql+psycopg://foreman_reader:reader-local-only@localhost:5432/foremanai
+  LLM_MODEL: anthropic/claude-haiku-5.5
+  EMBEDDING_MODEL: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+  # Secret: set in GitHub -> Settings -> Secrets and variables -> Actions.
+  OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+  # Minimum raw dev accuracy; single runs are noisy (about +/-5 points), so leave headroom.
+  EVAL_MIN_ACCURACY: "0.85"
+
+jobs:
+  test-and-eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      db:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: foreman
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: foremanai
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U foreman -d foremanai"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check . && uv run ruff format --check .
+
+      # The service container cannot mount db/init, so run the init SQL by hand.
+      - name: Init database (extensions + read-only role)
+        run: |
+          psql "postgresql://foreman:ci-only@localhost:5432/foremanai" -v ON_ERROR_STOP=1 -f db/init/01-extensions.sql
+          psql "postgresql://foreman:ci-only@localhost:5432/foremanai" -v ON_ERROR_STOP=1 -f db/init/02-roles.sql
+
+      - name: Migrate, seed, build vector index
+        run: |
+          uv run alembic upgrade head
+          uv run python -m app.seed
+          uv run python -m app.rag.index
+
+      - name: Unit + API tests
+        run: uv run pytest -q
+
+      - name: Eval gate (dev split)
+        run: uv run python evals/run.py --split dev --tag ci --min-accuracy "$EVAL_MIN_ACCURACY"
+
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: |
+            evals/results/ci.md
+            evals/results/ci.answers.jsonl
