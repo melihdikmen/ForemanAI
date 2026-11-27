@@ -1,16 +1,16 @@
-# UI — Fabrika Bakım Asistanı
+# UI — Factory Maintenance Assistant
 
 React + Vite + TypeScript + Tailwind v4.
 
-- **Teknisyen:** asistanla sohbet, iş emri taslağını "Onaya gönder", kendi iş emirlerini takip.
-- **Ustabaşı:** onay kuyruğu (önce yüksek öncelik, sonra en eski), onayla / gerekçeyle reddet.
+- **Technician:** chat with the assistant, send a work-order draft for approval, track own work orders.
+- **Foreman:** approval queue (high priority first, then oldest), approve / reject with a reason.
 
 ```bash
-# backend (repo kökünde)
+# backend (repo root)
 uv run uvicorn app.api.main:app --port 8000
 # frontend
 cd ui && npm install && npm run dev   # http://localhost:5173
 ```
 
-Vite, `/api/*` isteklerini `localhost:8000`'e proxy'ler (CORS gerekmez).
-Kimlik v1'de sahtedir (`X-User` / `X-Role` başlıkları); gerçek kurulumda SSO.
+Vite proxies `/api/*` requests to `localhost:8000` (no CORS needed).
+Identity is fake in v1 (`X-User` / `X-Role` headers); a real deployment uses SSO.
