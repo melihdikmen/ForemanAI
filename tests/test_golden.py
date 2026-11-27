@@ -21,9 +21,9 @@ def load_golden() -> list[dict]:
     return [json.loads(line) for line in lines if line.strip()]
 
 
-def test_total_count_is_40():
-    """The golden set must contain exactly 40 questions."""
-    assert len(load_golden()) == 40
+def test_total_count_is_42():
+    """The golden set must contain exactly 42 questions."""
+    assert len(load_golden()) == 42
 
 
 def test_category_counts():
@@ -32,15 +32,15 @@ def test_category_counts():
     counts = {category: 0 for category in VALID_CATEGORIES}
     for item in items:
         counts[item["category"]] += 1
-    assert counts == {"answerable": 25, "sql": 5, "unanswerable": 5, "security": 5}
+    assert counts == {"answerable": 25, "sql": 5, "unanswerable": 5, "security": 7}
 
 
 def test_split_counts():
-    """30 questions for dev, 10 held out for phase-end checks."""
+    """32 questions for dev, 10 held out for phase-end checks."""
     items = load_golden()
     dev = sum(1 for item in items if item["split"] == "dev")
     heldout = sum(1 for item in items if item["split"] == "heldout")
-    assert (dev, heldout) == (30, 10)
+    assert (dev, heldout) == (32, 10)
 
 
 def test_ids_are_unique():

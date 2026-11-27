@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from app.tools.faults import get_fault_history
+from app.tools.faults import get_fault_history, list_recent_faults
 from app.tools.manuals import search_manuals
 from app.tools.work_orders import draft_work_order
 
@@ -17,6 +17,7 @@ from app.tools.work_orders import draft_work_order
 TOOL_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "search_manuals": search_manuals,
     "get_fault_history": get_fault_history,
+    "list_recent_faults": list_recent_faults,
     "draft_work_order": draft_work_order,
 }
 
@@ -70,6 +71,25 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                     },
                 },
                 "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_recent_faults",
+            "description": "Bir makinenin son arıza kayıtlarını ayrıntılı (belirti, kök neden, "
+            "yapılan işlem) listeler. 'Son arızada ne olmuş / ne yapılmış' soruları için.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "machine_code": {"type": "string", "description": "Makine kodu, ör. 'CNC-1'."},
+                    "limit": {
+                        "type": "integer",
+                        "description": "Kaç kayıt (varsayılan 5, en çok 10).",
+                    },
+                },
+                "required": ["machine_code"],
             },
         },
     },
