@@ -25,6 +25,8 @@ FROM python:3.12-slim AS api
 COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /uvx /bin/
 
 WORKDIR /app
+# Runtime user, created early so files can be copied with the right owner.
+RUN useradd --system --create-home app
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/app/.venv
@@ -46,10 +48,12 @@ COPY alembic ./alembic
 COPY alembic.ini ./
 COPY data ./data
 COPY --from=ui /ui/dist ./ui/dist
-COPY docker/entrypoint.sh ./entrypoint.sh
+# --chmod: git on Windows does not keep the executable bit, so set it here explicitly.
+COPY --chmod=755 docker/entrypoint.sh ./entrypoint.sh
 
-# Run as a non-root user; nothing in the container needs root at runtime.
-RUN useradd --system --create-home app && chown -R app:app /app
+# Run as a non-root user; nothing in the container needs root at runtime. Only the
+# model cache needs to be writable (fastembed may write lock files); code stays root-owned.
+RUN chown -R app:app /app/.fastembed_cache
 USER app
 
 ENV PATH="/app/.venv/bin:$PATH" \
