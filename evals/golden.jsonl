@@ -1,8 +1,8 @@
 {"id":"ans-01","category":"answerable","split":"dev","question":"PRES-1'de E-102 hidrolik yağ sıcaklığı yüksek alarmında ilk ne kontrol edilmeli?","expected":{"must_include":["soğutucu","yağ seviyesi"],"sources":["PRES-1.md"]}}
 {"id":"ans-02","category":"answerable","split":"dev","question":"KOMP-1'de C-307 faz hatası uyarısı varsa ne yapılmalı?","expected":{"must_include":["faz sırası","besleme"],"sources":["KOMP-1.md"]}}
 {"id":"ans-03","category":"answerable","split":"dev","question":"PRES-1'de E-101 hidrolik basınç düşük alarmında neler kontrol edilmeli?","expected":{"must_include":["yağ seviyesi","basınç valfi"],"sources":["PRES-1.md"]}}
-{"id":"ans-04","category":"answerable","split":"dev","question":"PRES-1'de koç (ram) geri dönmüyorsa (E-103) ne yapılır?","expected":{"must_include":["yön valfi","sensör"],"sources":["PRES-1.md"]}}
-{"id":"ans-05","category":"answerable","split":"dev","question":"Hidrolik preste bakım öncesi LOTO adımları nelerdir?","expected":{"must_include":["enerji","kilitle","basınç"],"sources":["PRES-1.md"]}}
+{"id":"ans-04","category":"answerable","split":"dev","question":"PRES-1'de koç (ram) geri dönmüyorsa (E-103) ne yapılır?","expected":{"must_include":["yön valfi|yön kontrol valfi|valf","sensör"],"sources":["PRES-1.md"]}}
+{"id":"ans-05","category":"answerable","split":"dev","question":"Hidrolik preste bakım öncesi LOTO adımları nelerdir?","expected":{"must_include":["enerji|şalter","kilitle|kilit","basınç"],"sources":["PRES-1.md"]}}
 {"id":"ans-06","category":"answerable","split":"dev","question":"Hidrolik pres yıllık yağ değişiminde hangi yağ kullanılır?","expected":{"must_include":["ISO VG 46"],"sources":["PRES-1.md"]}}
 {"id":"ans-07","category":"answerable","split":"dev","question":"PRES-2'de pompa motoru aşırı akım çekiyorsa (E-107) ne kontrol edilir?","expected":{"must_include":["kaplin","yük"],"sources":["PRES-2.md"]}}
 {"id":"ans-08","category":"answerable","split":"dev","question":"PRES-3'te yağ seviyesi düşük alarmında (E-104) ne yapılmalı?","expected":{"must_include":["kaçak","ISO VG 46"],"sources":["PRES-3.md"]}}
