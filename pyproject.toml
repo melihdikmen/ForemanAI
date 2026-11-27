@@ -12,6 +12,7 @@ dependencies = [
     "fastapi>=0.165.0",
     "fastembed>=0.9.1",
     "langfuse>=5.2.0",
+    "mcp>=2.3.0",
     "openai>=3.60.0",
     "pgvector>=0.5.1",
     "psycopg[binary]>=3.3.9",

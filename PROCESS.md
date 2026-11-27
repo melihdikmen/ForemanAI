@@ -260,6 +260,7 @@ Dev 91% (noise ±5%, security 5/5); held-out run for the first time: 80%.
 ### Phase 11 — Memory
 **What I will learn:** short-term (conversation) vs long-term memory, writing/recalling memory, feeding memory into the context layer.
 **To do:**
+- [ ] **Short-term (conversation) memory first:** the UI sends the previous turns with each `/ask`; the agent replays only questions and final answers (not tool output), capped at the last N turns. Add 3–4 multi-turn questions to the golden set. (Found in Phase 8: the deployed demo forgets the previous message.)
 - [ ] Long-term memory store (e.g. the foreman's preferences, frequent rejection reasons, machine-specific notes)
 - [ ] Recall relevant memory per request and add it to the context (without exceeding the token budget)
 - [ ] Privacy/PII: what is stored in memory and what is not
