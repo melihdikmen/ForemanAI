@@ -48,9 +48,15 @@ export interface AskResponse {
   guard_flags: string[]
 }
 
+/**
+ * Prefix for API calls. In dev it is `/api` (Vite proxies it to FastAPI). The Docker
+ * image sets VITE_API_BASE="" because the API serves the UI from the same origin.
+ */
+const API_BASE: string = import.meta.env.VITE_API_BASE ?? '/api'
+
 /** Fetch JSON from the API as `user`; throws an Error carrying FastAPI's `detail`. */
 async function request<T>(user: User, path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`/api${path}`, {
+  const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',

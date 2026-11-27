@@ -5,8 +5,10 @@ Run locally:  uv run uvicorn app.api.main:app --reload
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app.agent.loop import run_agent
@@ -70,3 +72,11 @@ def ask(req: AskRequest) -> AskResponse:
         guard_flags=result.guard_flags,
         trace_id=result.trace_id,
     )
+
+
+# Built React UI (ui/dist). Mounted last so API routes above win; anything else
+# (index.html, assets) is served as static files. Absent in dev, where Vite serves
+# the UI and proxies /api to this server.
+UI_DIST_DIR = Path(__file__).resolve().parents[2] / "ui" / "dist"
+if UI_DIST_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=UI_DIST_DIR, html=True), name="ui")

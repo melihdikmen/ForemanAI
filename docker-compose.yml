@@ -1,5 +1,12 @@
-# Local development database: PostgreSQL 16 with the pgvector extension.
+# Local stack: PostgreSQL 16 + pgvector, and the API image (which also serves the UI).
 # Values come from .env (docker compose reads it automatically for ${...} substitution).
+#
+#   docker compose up -d --build        # db + api on http://localhost:8080
+#   docker compose run --rm api python -m app.seed       # one-off: load synthetic data
+#   docker compose run --rm api python -m app.rag.index  # one-off: build the vector index
+#
+# For day-to-day development keep using `uv run uvicorn` + `npm run dev` against the
+# db service only; this file is for running the production image end to end.
 
 services:
   db:
@@ -24,6 +31,23 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  api:
+    build: .
+    image: foremanai:local
+    container_name: foremanai-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Inside the compose network the database is reachable by service name, not localhost.
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      DATABASE_URL_READONLY: postgresql+psycopg://foreman_reader:reader-local-only@db:5432/${POSTGRES_DB}
+      PORT: "8080"
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   pgdata:
