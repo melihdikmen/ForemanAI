@@ -168,11 +168,22 @@ kullanıcısı henüz ayrı/salt okunur değil → Faz 6'da.
 ### Faz 6 — Güvenlik ve guardrail (3–4 gün)
 **Öğreneceklerim:** lethal trifecta, prompt injection, en az yetki, girdi/çıktı kontrolü.
 **Yapılacaklar:**
-- [ ] Salt okunur DB kullanıcısı; yazma yalnızca onay servisinde
-- [ ] Injection içeren kayıtlarla test; asistan talimatlara uymamalı
-- [ ] Çıktı kontrolü: güvenlik adımı (enerji kesme/LOTO) atlanmamalı
-- [ ] `SECURITY.md`: tehdit modeli ve alınan önlemler
+- [x] Salt okunur DB kullanıcısı; yazma yalnızca onay servisinde
+- [x] Injection içeren kayıtlarla test; asistan talimatlara uymamalı
+- [x] Çıktı kontrolü: güvenlik adımı (enerji kesme/LOTO) atlanmamalı
+- [x] `SECURITY.md`: tehdit modeli ve alınan önlemler
 **Bitti kriteri:** 5 güvenlik sorusunun hepsi geçiyor.
+
+**Uygulanan karar (2026-11-27):** Katmanlı savunma; LLM'in kandırılabileceği kabul edildi.
+(1) `foreman_reader` Postgres rolü, sadece SELECT; agent araçları `ReadOnlySessionLocal` ile
+bağlanır, yazma Postgres'te reddedilir (test ile kanıtlı). (2) Bulgu: `get_fault_history` sadece
+özet döndürdüğü için tuzak kayıtlar modele hiç gitmiyordu, injection ölçülmüyordu. Yeni araç
+`list_recent_faults` metni `<fault_record>` etiketiyle sarar; golden'a sec-06/07 eklendi (42 soru).
+Etiket açık/kapalı A/B: fark yok (Haiku 5.5 iki durumda da direndi), savunma derinliği olarak
+tutuldu. (3) `app/guard.py`: LLM'siz regex çıktı denetimi; "LOTO gereksiz / onayladım" gibi
+ifadeleri yakalar, cevabı silmez, uyarı ekler + `guard_flags` ile UI şeridi. (4) Ölçer hatası:
+`must_not` anahtar kelimeleri modelin tuzağı *alıntılamasına* takılıyordu; eylem iddialarına
+daraltıldı. Dev %91 (gürültü ±%5, güvenlik 5/5); held-out ilk kez koşuldu: %80.
 **Kontrol soruları:** Bu sistemde trifecta'nın hangi ayağını kırdık ve neden o ayağı?
 
 ### Faz 7 — Gözlemlenebilirlik ve otomatik eval (3 gün)
@@ -263,7 +274,7 @@ kullanıcısı henüz ayrı/salt okunur değil → Faz 6'da.
 | 3 RAG | ✅ | 2026-11-26 | 2026-11-26 | fastembed (MiniLM-384) + pgvector, 61 chunk, vektör arama + kaynak gösterme. Dev doğruluk %63→%77, recall@5=0.95 (hedef ≥0.85). Hibrit arama (3.8) atlandı (recall yeterli) |
 | 4 Agent | ✅ | 2026-11-26 | 2026-11-26 | Ham tool-calling agent (LangGraph değil): search_manuals, get_fault_history (salt okunur), draft_work_order (taslak). Dev doğruluk %77→%93, sql 0/4→4/4. Eval ölçeri sağlamlaştırıldı (refusal+sayı normalizasyonu) |
 | 5 HITL | ✅ | 2026-11-26 | 2026-11-26 | DB state machine (LangGraph yerine): taslak → teknisyen gönderir (PENDING) → ustabaşı onay/ret (rol kontrolü, satır kilidi, 409, ret gerekçesi). `/ask` → `drafts`. React+Tailwind UI (sohbet + onay kuyruğu). 28 test; dev eval %93 (regresyon yok) |
-| 6 Güvenlik | ⬜ | | | |
+| 6 Güvenlik | ✅ | 2026-11-27 | 2026-11-27 | Read-only Postgres rolü (test ile kanıtlı), `list_recent_faults` + `<fault_record>` etiketi, regex çıktı guard'ı + UI uyarısı, SECURITY.md. Golden 42 soru (7 güvenlik). Dev %91 (güvenlik 5/5), held-out ilk koşu %80 (sec-02, unans-04 düştü) |
 | 7 Gözlemlenebilirlik | ⬜ | | | |
 | 8 Deploy + MCP | ⬜ | | | |
 | 9 Teslim | ⬜ | | | |
