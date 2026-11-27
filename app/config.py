@@ -14,8 +14,12 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Database connection string for SQLAlchemy (postgresql+psycopg://...).
+    # Owner connection (can write). Used only by migrations, seeding and the
+    # work-order endpoints where a human submits/approves.
     database_url: str
+    # Read-only connection (SELECT only). Everything the LLM can trigger — the
+    # agent's tools — goes through this one, so a prompt injection cannot write.
+    database_url_readonly: str
 
     # LLM access via OpenRouter (OpenAI-compatible API).
     openrouter_api_key: str

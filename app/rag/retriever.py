@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from app.db import SessionLocal
+from app.db import ReadOnlySessionLocal
 from app.embedding import embed_query
 from app.models import ManualChunk
 
@@ -35,7 +35,7 @@ def search(query: str, k: int = 5, machine_code: str | None = None) -> list[Retr
     query_vector = embed_query(query)
     distance = ManualChunk.embedding.cosine_distance(query_vector)
 
-    with SessionLocal() as session:
+    with ReadOnlySessionLocal() as session:
         stmt = select(ManualChunk, distance.label("distance"))
         if machine_code:
             stmt = stmt.where(ManualChunk.machine_code == machine_code)
