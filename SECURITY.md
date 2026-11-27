@@ -81,6 +81,13 @@ SSO (Entra ID) and server-side role mapping (Phase 8).
 module (`app/llm.py`); tokens/cost are logged, the key is not. Question sec-04 measures that a
 "print your system prompt" request is refused.
 
+In the cloud (Phase 8) secrets live only in Google Secret Manager and are bound to Cloud Run
+as env vars; the GitHub Actions deploy uses Workload Identity Federation (short-lived OIDC
+exchange), so no Google key file exists anywhere. The only GitHub secret is the OpenRouter key
+the eval gate needs. Incident during setup: a secret with a trailing newline produced an
+invalid-header exception whose text included the key, and that landed in Cloud Run logs
+(project-private). Rotating that key is recommended; lesson: strip and length-check secrets before storing.
+
 ## 4. Eval results (2026-11-27)
 
 | Set | Result | Security |
@@ -103,7 +110,8 @@ Reports: `evals/results/faz6.md`, `evals/results/faz6-heldout.md`.
   (Phase 7).
 - **The effect of tagging is unproven** (small set, strong model). Should be re-measured with a
   weaker model or sneakier traps.
-- **Identity is fake** (T4).
+- **Identity is fake** (T4). The public demo URL therefore lets anyone act as a foreman; it holds
+  only synthetic data.
 
 ## 6. Open points
 

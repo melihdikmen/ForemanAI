@@ -224,12 +224,41 @@ Dev 91% (noise ±5%, security 5/5); held-out run for the first time: 80%.
 ### Phase 8 — Deploy and MCP (4–5 days)
 **What I will learn:** Docker images, Compose, CI/CD, Cloud Run, environment variables/secret management, MCP servers; (alternative) **AWS Bedrock AgentCore** as a managed agent platform.
 **To do:**
-- [ ] Dockerfile + `docker-compose.yml` (api, db, ui)
-- [ ] GitHub Actions: test → eval → build → deploy
-- [ ] Deploy to Cloud Run, health check
-- [ ] Expose the tools as an MCP server (connect from Claude Desktop and try it)
-- [ ] (Optional/alternative) **Comparison with AgentCore**: map the agent/tool/HITL/secret pieces we wrote to their AgentCore counterparts — **Gateway** (publishing tools as MCP), **Identity** (authn/authz), **Policy** (permissions/guardrails), **Memory** (managed memory), **Runtime** (execution). Discuss the "build it yourself vs managed platform" decision in the README.
+- [x] Dockerfile + `docker-compose.yml` (api, db, ui)
+- [x] GitHub Actions: test → eval → build → deploy
+- [x] Deploy to Cloud Run, health check
+- [x] Expose the tools as an MCP server (connect from Claude Desktop and try it)
+- [x] (Optional/alternative) **Comparison with AgentCore**: map the agent/tool/HITL/secret pieces we wrote to their AgentCore counterparts — **Gateway** (publishing tools as MCP), **Identity** (authn/authz), **Policy** (permissions/guardrails), **Memory** (managed memory), **Runtime** (execution). Discuss the "build it yourself vs managed platform" decision in the README.
 **Done criterion:** Public demo link; tools usable from another client via MCP.
+
+**Decision applied (2026-11-27):**
+- **One image, one service.** Multi-stage Dockerfile: Node builds the React UI, `python:3.12-slim` + uv runs
+  the API and serves `ui/dist` from `/` (same origin, no CORS). Embedding model baked into the image so a
+  cold start never downloads it. Non-root user. Entrypoint runs `alembic upgrade head`, then uvicorn on `$PORT`.
+- **Cloud Run (europe-west1) + Neon Postgres** (free tier, pgvector 0.8.7, read-only role with a random
+  password). Secrets only in Secret Manager, bound as env vars; `.env` never leaves the laptop. 2 GiB RAM,
+  0–2 instances, concurrency 20. Demo: https://foremanai-998448097011.europe-west1.run.app
+- **CI/CD** (`.github/workflows/ci.yml`): push to master → ruff → pytest → eval gate (≥ 0.85) → image
+  tagged with the commit sha → `gcloud run deploy` → `/health`. Auth via **Workload Identity Federation**
+  (GitHub OIDC → `github-deployer` service account with only Cloud Run admin + Artifact Registry writer);
+  no key file in GitHub. Rollback = deploy an older sha.
+- **MCP** (`app/mcp_server.py`, stdio): the four agent tools registered from `TOOL_SCHEMAS` (one source of
+  truth), `read_only_hint` on the three readers. Verified from Claude Desktop ("Connected to foremanai (4
+  tools)"). Note: through MCP the *client's* model interprets tool output; our system prompt and output guard
+  are not in the loop.
+- **Two deploy bugs, both environment differences:** (1) secrets written with a trailing newline → invalid
+  HTTP header (fix: strip, verify length); (2) git on Windows drops the executable bit → CI image failed with
+  "permission denied" on the entrypoint while the local image worked (fix: `COPY --chmod=755`, `+x` in the
+  index). Lesson: the laptop build is not the CI build; make permissions and inputs explicit.
+- **AWS considered, not chosen** (the user has credits): App Runner + RDS was the equivalent; stayed with the
+  plan to keep one cloud for v1. **AgentCore mapping** (build vs managed): Gateway ≈ our MCP server (would
+  publish the OpenAPI as MCP tools, adds auth/Policy); Runtime ≈ Cloud Run for the agent loop only (ARM64,
+  `/invocations` contract; would split the web app from the agent); Identity ≈ fake `X-Role` headers →
+  real IdP; Policy ≈ `app/guard.py` + role checks, but as Cedar rules on tool calls; Memory ≈ nothing yet
+  (Phase 11 candidate). What we would gain: auth, policy and memory as services. What we would lose: one
+  deployable artifact, portability, and the understanding we built by writing each layer.
+- **Known limits:** cold start 13–17 s (p95 target 8 s) — `--min-instances=1` fixes it for ~$15/month;
+  identity still fake (anyone can send the foreman header); 2.08 GB image (onnxruntime + model).
 **Control questions:** Where do we keep secrets? What did MCP make easier? Which pieces would AgentCore take over from us, and what would we lose (control/portability)?
 
 ### Phase 9 — Delivery and story (2 days)
@@ -300,7 +329,7 @@ Dev 91% (noise ±5%, security 5/5); held-out run for the first time: 80%.
 | 5 HITL | ✅ | 2026-11-26 | 2026-11-26 | DB state machine (instead of LangGraph): draft → technician submits (PENDING) → foreman approve/reject (role check, row lock, 409, rejection reason). `/ask` → `drafts`. React+Tailwind UI (chat + approval queue). 28 tests; dev eval 93% (no regression) |
 | 6 Security | ✅ | 2026-11-27 | 2026-11-27 | Read-only Postgres role (proven by test), `list_recent_faults` + `<fault_record>` tag, regex output guard + UI warning, SECURITY.md. Golden 42 questions (7 security). Dev 91% (security 5/5), held-out first run 80% (sec-02, unans-04 failed) |
 | 7 Observability | ✅ | 2026-11-27 | 2026-11-27 | run.py: MRR, p50/p95, cost per query, `--runs` (3 runs: 93%, 4 flaky), `--min-accuracy`. LLM-as-judge (Sonnet) found 3 scorer bugs (Turkish I, keyword brittleness, refusal patterns); 10 manual labels: judge 10/10, keyword 7/10. Langfuse traces (agent→generation→tool→retriever). GitHub Actions CI (waiting for push). Dev 97% |
-| 8 Deploy + MCP | ⬜ | | | |
+| 8 Deploy + MCP | ✅ | 2026-11-27 | 2026-11-27 | Multi-stage Docker image (API + UI, model baked in), compose. Cloud Run (europe-west1) + Neon Postgres, Secret Manager. CI/CD with eval gate and WIF (no key file). MCP server (stdio) connected from Claude Desktop. Two env-difference bugs fixed (secret newline, exec bit). Cold start 13–17 s |
 | 9 Delivery | ⬜ | | | |
 | 10 Agentic RAG + multi-agent (v2) | ✅ | 2026-11-26 | 2026-11-26 | Agentic RAG: machine-filtered search, iterative re-search, score visibility. A/B on the hard question set (evals/hard.jsonl): single-shot 80% vs agentic 100% (cost ~58% higher). A/B via run.py --file/--mode. Sub-agents deferred (optional) |
 | 11 Memory (v2) | ⬜ | | | |
